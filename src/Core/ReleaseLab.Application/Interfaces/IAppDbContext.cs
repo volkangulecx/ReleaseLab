@@ -12,6 +12,7 @@ public interface IAppDbContext
     DbSet<Payment> Payments { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
     DbSet<VerificationCode> VerificationCodes { get; }
+    DbSet<Subscription> Subscriptions { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Music, LayoutDashboard, Upload, CreditCard, LogOut, Menu, X } from "lucide-react";
+import { Music, LayoutDashboard, Upload, CreditCard, Crown, LogOut, Menu, X } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -60,6 +60,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           <CreditCard className="w-5 h-5" />
           Credits
+        </Link>
+        <Link
+          href="/dashboard/plan"
+          onClick={() => setMobileOpen(false)}
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-zinc-300 hover:bg-zinc-800 transition"
+        >
+          <Crown className="w-5 h-5" />
+          Plan
         </Link>
       </nav>
 

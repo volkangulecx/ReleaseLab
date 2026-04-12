@@ -60,6 +60,7 @@ try
     builder.Services.AddScoped<IQueueService, RedisQueueService>();
     builder.Services.AddScoped<IStorageService, MinioStorageService>();
     builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+    builder.Services.AddScoped<ISubscriptionService, ReleaseLab.Infrastructure.Payments.Services.StripeSubscriptionService>();
     builder.Services.AddSingleton<IJwtService, JwtService>();
     builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
     builder.Services.AddSingleton<IAudioAnalysisService, FFmpegAnalysisService>();

@@ -29,15 +29,18 @@ public class UploadController : ControllerBase
     public async Task<IActionResult> Init([FromBody] UploadInitRequest request)
     {
         var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return Unauthorized();
 
         // Validate content type
         var allowedTypes = new[] { "audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac" };
         if (!allowedTypes.Contains(request.ContentType.ToLowerInvariant()))
             return BadRequest(new { message = "Unsupported audio format" });
 
-        // Validate file size (50MB free, 500MB studio — simplified for MVP)
-        if (request.SizeBytes > 500 * 1024 * 1024)
-            return BadRequest(new { message = "File too large (max 500MB)" });
+        // Plan-based file size limit
+        var maxSize = Application.Interfaces.PlanLimits.MaxFileSizeBytes(user.Plan);
+        if (request.SizeBytes > maxSize)
+            return BadRequest(new { message = $"File too large (max {maxSize / 1024 / 1024}MB for your plan)" });
 
         var fileId = Guid.NewGuid();
         var now = DateTime.UtcNow;

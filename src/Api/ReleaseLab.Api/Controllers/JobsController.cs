@@ -32,11 +32,18 @@ public class JobsController : ControllerBase
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateJobRequest request)
+    public async Task<IActionResult> Create(
+        [FromBody] CreateJobRequest request,
+        [FromServices] ISubscriptionService subscriptions)
     {
         var userId = Guid.Parse(User.FindFirst("sub")!.Value);
         var user = await _db.Users.FindAsync(userId);
         if (user is null) return Unauthorized();
+
+        // Plan limit check
+        var canCreate = await subscriptions.CanCreateMasterAsync(userId);
+        if (!canCreate)
+            return BadRequest(new { message = "Monthly mastering limit reached. Upgrade your plan or purchase credits." });
 
         var file = await _db.Files.FindAsync(request.FileId);
         if (file is null || file.UserId != userId)
@@ -83,7 +90,10 @@ public class JobsController : ControllerBase
         _db.Jobs.Add(job);
         await _db.SaveChangesAsync();
 
-        // Enqueue to Redis
+        // Track usage
+        await subscriptions.IncrementUsageAsync(userId);
+
+        // Enqueue to Redis with plan-based priority
         await _queue.EnqueueMasteringJobAsync(new MasteringJobMessage
         {
             JobId = job.Id,
@@ -94,7 +104,7 @@ public class JobsController : ControllerBase
             Quality = quality.ToString(),
             AttemptCount = 0,
             EnqueuedAt = DateTime.UtcNow
-        });
+        }, user.Plan);
 
         return Created($"/api/v1/jobs/{job.Id}", MapToResponse(job));
     }
