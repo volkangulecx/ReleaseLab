@@ -6,6 +6,7 @@ services:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.api
     environment:
+      - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Postgres=Host=postgres;Database=releaselab;Username=rl;Password=rl
       - Redis__Connection=redis:6379
       - S3__Endpoint=http://minio:9000
@@ -14,8 +15,36 @@ services:
       - Jwt__Secret=super-secret-dev-key-change-in-production-min-32-chars!!
       - Jwt__Issuer=releaselab
       - Jwt__Audience=releaselab
+      - Stripe__SecretKey=sk_test_placeholder
+      - Stripe__WebhookSecret=whsec_placeholder
     depends_on: [postgres, redis, minio]
     ports: ["5000:8080"]
+
+  upload:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.upload
+    environment:
+      - S3__Endpoint=http://minio:9000
+      - S3__AccessKey=minioadmin
+      - S3__SecretKey=minioadmin
+      - Jwt__Secret=super-secret-dev-key-change-in-production-min-32-chars!!
+      - Jwt__Issuer=releaselab
+      - Jwt__Audience=releaselab
+    depends_on: [minio]
+    ports: ["5001:8080"]
+
+  admin:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.admin
+    environment:
+      - ConnectionStrings__Postgres=Host=postgres;Database=releaselab;Username=rl;Password=rl
+      - Jwt__Secret=super-secret-dev-key-change-in-production-min-32-chars!!
+      - Jwt__Issuer=releaselab
+      - Jwt__Audience=releaselab
+    depends_on: [postgres]
+    ports: ["5002:8080"]
 
   worker-mastering:
     build:
@@ -59,7 +88,7 @@ services:
     image: nginx:alpine
     volumes: ["../nginx/nginx.conf:/etc/nginx/nginx.conf:ro"]
     ports: ["80:80"]
-    depends_on: [api]
+    depends_on: [api, upload]
 
 volumes:
   pgdata: {}

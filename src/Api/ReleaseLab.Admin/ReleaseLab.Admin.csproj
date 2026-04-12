@@ -1,5 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Core\ReleaseLab.Application\ReleaseLab.Application.csproj" />
+    <ProjectReference Include="..\..\Core\ReleaseLab.Domain\ReleaseLab.Domain.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Data\ReleaseLab.Infrastructure.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>

@@ -5,6 +5,11 @@
     <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Storage\ReleaseLab.Infrastructure.Storage.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+    <PackageReference Include="Minio" Version="7.0.0" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>

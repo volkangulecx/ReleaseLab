@@ -2,9 +2,12 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Core\ReleaseLab.Application\ReleaseLab.Application.csproj" />
+    <ProjectReference Include="..\..\Core\ReleaseLab.Domain\ReleaseLab.Domain.csproj" />
+    <ProjectReference Include="..\ReleaseLab.Infrastructure.Data\ReleaseLab.Infrastructure.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.5" />
     <PackageReference Include="Stripe.net" Version="51.0.0" />
   </ItemGroup>
 

@@ -5,34 +5,60 @@ using ReleaseLab.Infrastructure.Data;
 using ReleaseLab.Infrastructure.Queue.Services;
 using ReleaseLab.Infrastructure.Storage.Services;
 using ReleaseLab.Worker.Mastering;
+using Serilog;
 using StackExchange.Redis;
 
-var builder = Host.CreateApplicationBuilder(args);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .Enrich.FromLogContext()
+    .CreateBootstrapLogger();
 
-// Database
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
-builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+try
+{
+    var builder = Host.CreateApplicationBuilder(args);
 
-// Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect(builder.Configuration["Redis:Connection"] ?? "localhost:6379"));
+    builder.Services.AddSerilog((_, lc) => lc
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Application", "ReleaseLab.Worker.Mastering"));
 
-// MinIO
-builder.Services.AddSingleton<IMinioClient>(sp =>
-    new MinioClient()
-        .WithEndpoint(builder.Configuration["S3:Endpoint"] ?? "localhost:9000")
-        .WithCredentials(
-            builder.Configuration["S3:AccessKey"] ?? "minioadmin",
-            builder.Configuration["S3:SecretKey"] ?? "minioadmin")
-        .WithSSL(false)
-        .Build());
+    // Database
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+    builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-// Services
-builder.Services.AddScoped<IQueueService, RedisQueueService>();
-builder.Services.AddScoped<IStorageService, MinioStorageService>();
+    // Redis
+    builder.Services.AddSingleton<IConnectionMultiplexer>(
+        ConnectionMultiplexer.Connect(builder.Configuration["Redis:Connection"] ?? "localhost:6379"));
 
-builder.Services.AddHostedService<MasteringWorker>();
+    // MinIO
+    builder.Services.AddSingleton<IMinioClient>(sp =>
+        new MinioClient()
+            .WithEndpoint(builder.Configuration["S3:Endpoint"] ?? "localhost:9000")
+            .WithCredentials(
+                builder.Configuration["S3:AccessKey"] ?? "minioadmin",
+                builder.Configuration["S3:SecretKey"] ?? "minioadmin")
+            .WithSSL(false)
+            .Build());
 
-var host = builder.Build();
-host.Run();
+    // Services
+    builder.Services.AddScoped<IQueueService, RedisQueueService>();
+    builder.Services.AddScoped<IStorageService, MinioStorageService>();
+
+    // Workers
+    builder.Services.AddHostedService<MasteringWorker>();
+    builder.Services.AddHostedService<HeartbeatService>();
+    builder.Services.AddHostedService<DeadLetterProcessor>();
+
+    var host = builder.Build();
+    Log.Information("Mastering worker starting...");
+    host.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Worker terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

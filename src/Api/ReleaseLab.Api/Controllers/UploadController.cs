@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Application.Uploads.DTOs;
 using ReleaseLab.Domain.Entities;
@@ -10,6 +11,7 @@ namespace ReleaseLab.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/v1/uploads")]
+[EnableRateLimiting("upload")]
 public class UploadController : ControllerBase
 {
     private readonly IAppDbContext _db;

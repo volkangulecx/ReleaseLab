@@ -1,88 +1,209 @@
 using System.Text;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using Minio;
+using ReleaseLab.Api.Middleware;
 using ReleaseLab.Api.Services;
+using ReleaseLab.Infrastructure.Data.Seed;
 using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Infrastructure.Data;
+using ReleaseLab.Infrastructure.Payments.Services;
 using ReleaseLab.Infrastructure.Queue.Services;
 using ReleaseLab.Infrastructure.Storage.Services;
+using Serilog;
 using StackExchange.Redis;
 
-var builder = WebApplication.CreateBuilder(args);
+// ── Serilog bootstrap ──
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .Enrich.FromLogContext()
+    .CreateBootstrapLogger();
 
-// Database
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
-builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
+try
+{
+    var builder = WebApplication.CreateBuilder(args);
 
-// Redis
-builder.Services.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect(builder.Configuration["Redis:Connection"] ?? "localhost:6379"));
+    // Serilog
+    builder.Host.UseSerilog((ctx, lc) => lc
+        .ReadFrom.Configuration(ctx.Configuration)
+        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Application", "ReleaseLab.Api"));
 
-// MinIO / S3
-builder.Services.AddSingleton<IMinioClient>(sp =>
-    new MinioClient()
-        .WithEndpoint(builder.Configuration["S3:Endpoint"] ?? "localhost:9000")
-        .WithCredentials(
-            builder.Configuration["S3:AccessKey"] ?? "minioadmin",
-            builder.Configuration["S3:SecretKey"] ?? "minioadmin")
-        .WithSSL(false)
-        .Build());
+    // ── Database ──
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+    builder.Services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
-// Services
-builder.Services.AddScoped<IQueueService, RedisQueueService>();
-builder.Services.AddScoped<IStorageService, MinioStorageService>();
-builder.Services.AddSingleton<IJwtService, JwtService>();
+    // ── Redis ──
+    var redisConnection = builder.Configuration["Redis:Connection"] ?? "localhost:6379";
+    builder.Services.AddSingleton<IConnectionMultiplexer>(
+        ConnectionMultiplexer.Connect(redisConnection));
 
-// Auth
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
+    // ── MinIO / S3 ──
+    builder.Services.AddSingleton<IMinioClient>(sp =>
+        new MinioClient()
+            .WithEndpoint(builder.Configuration["S3:Endpoint"] ?? "localhost:9000")
+            .WithCredentials(
+                builder.Configuration["S3:AccessKey"] ?? "minioadmin",
+                builder.Configuration["S3:SecretKey"] ?? "minioadmin")
+            .WithSSL(false)
+            .Build());
+
+    // ── Application Services ──
+    builder.Services.AddScoped<IQueueService, RedisQueueService>();
+    builder.Services.AddScoped<IStorageService, MinioStorageService>();
+    builder.Services.AddScoped<IPaymentService, StripePaymentService>();
+    builder.Services.AddSingleton<IJwtService, JwtService>();
+
+    // ── Auth ──
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
         {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = builder.Configuration["Jwt:Issuer"],
-            ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
-        };
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = true,
+                ValidateAudience = true,
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = builder.Configuration["Jwt:Issuer"],
+                ValidAudience = builder.Configuration["Jwt:Audience"],
+                IssuerSigningKey = new SymmetricSecurityKey(
+                    Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Secret"]!))
+            };
+        });
+    builder.Services.AddAuthorization();
+
+    // ── Rate Limiting ──
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+        options.AddFixedWindowLimiter("auth", opt =>
+        {
+            opt.PermitLimit = 10;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
+
+        options.AddFixedWindowLimiter("upload", opt =>
+        {
+            opt.PermitLimit = 20;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
+
+        options.AddFixedWindowLimiter("general", opt =>
+        {
+            opt.PermitLimit = 100;
+            opt.Window = TimeSpan.FromMinutes(1);
+            opt.QueueLimit = 0;
+        });
     });
-builder.Services.AddAuthorization();
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+    // ── Health Checks ──
+    builder.Services.AddHealthChecks()
+        .AddNpgSql(builder.Configuration.GetConnectionString("Postgres")!, name: "postgres")
+        .AddRedis(redisConnection, name: "redis");
 
-// CORS
-builder.Services.AddCors(options =>
-{
-    options.AddDefaultPolicy(policy =>
-        policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
-});
+    // ── Swagger ──
+    builder.Services.AddControllers();
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo
+        {
+            Title = "ReleaseLab API",
+            Version = "v1",
+            Description = "Music mastering platform API"
+        });
 
-var app = builder.Build();
+        c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        {
+            Description = "JWT Authorization header. Example: \"Bearer {token}\"",
+            Name = "Authorization",
+            In = ParameterLocation.Header,
+            Type = SecuritySchemeType.ApiKey,
+            Scheme = "Bearer"
+        });
 
-// Auto-migrate in development
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await db.Database.MigrateAsync();
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "Bearer"
+                    }
+                },
+                Array.Empty<string>()
+            }
+        });
+    });
 
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // ── CORS ──
+    builder.Services.AddCors(options =>
+    {
+        options.AddDefaultPolicy(policy =>
+            policy
+                .WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? new[] { "http://localhost:3000" })
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials());
+    });
+
+    var app = builder.Build();
+
+    // ── Middleware Pipeline ──
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
+    app.UseMiddleware<RequestLoggingMiddleware>();
+
+    // Auto-migrate and seed in development
+    if (app.Environment.IsDevelopment())
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.MigrateAsync();
+        await DbSeeder.SeedAsync(db, scope.ServiceProvider.GetRequiredService<ILogger<Program>>());
+
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "ReleaseLab API v1");
+            c.RoutePrefix = "swagger";
+        });
+    }
+
+    app.UseCors();
+    app.UseRateLimiter();
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    // Health checks
+    app.MapHealthChecks("/health");
+    app.MapGet("/", () => Results.Ok(new
+    {
+        name = "ReleaseLab API",
+        version = "1.0.0",
+        status = "running"
+    }));
+
+    Log.Information("ReleaseLab API starting...");
+    app.Run();
 }
-
-app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapControllers();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
-
-app.Run();
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Application terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}
