@@ -111,6 +111,18 @@ export const mixApi = {
     api.post(`/api/v1/mix/projects/${projectId}/auto-mix`),
 };
 
+// Releases
+export const releaseApi = {
+  create: (data: any) => api.post("/api/v1/releases", data),
+  list: () => api.get("/api/v1/releases"),
+  get: (id: string) => api.get(`/api/v1/releases/${id}`),
+  update: (id: string, data: any) => api.put(`/api/v1/releases/${id}`, data),
+  uploadArtwork: (id: string) => api.post(`/api/v1/releases/${id}/artwork`),
+  schedule: (id: string, releaseDate: string, distributor?: string) =>
+    api.post(`/api/v1/releases/${id}/schedule`, { releaseDate, distributor }),
+  submit: (id: string) => api.post(`/api/v1/releases/${id}/submit`),
+};
+
 // Admin
 export const adminApi = {
   stats: () => api.get("/api/admin/jobs/stats"),
