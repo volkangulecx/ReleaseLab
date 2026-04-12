@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Music,
   Zap,
   Shield,
   ArrowRight,
@@ -15,6 +14,7 @@ import {
   SlidersHorizontal,
   Download,
 } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 
 export default function LandingPage() {
   return (
@@ -22,9 +22,8 @@ export default function LandingPage() {
       {/* ────────── Navbar ────────── */}
       <nav className="glass-strong sticky top-0 z-50 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-2.5 group">
-            <Music className="w-7 h-7 text-violet-500 group-hover:text-violet-400 transition" />
-            <span className="text-xl font-bold tracking-tight">ReleaseLab</span>
+          <Link href="/">
+            <Logo size="md" />
           </Link>
           <div className="flex items-center gap-4">
             <Link
@@ -369,8 +368,7 @@ export default function LandingPage() {
       <footer className="border-t border-zinc-800/60 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Music className="w-5 h-5 text-violet-500" />
-            <span className="font-semibold text-sm">ReleaseLab</span>
+            <Logo size="sm" />
             <span className="text-zinc-500 text-sm ml-1">
               &copy; {new Date().getFullYear()}
             </span>

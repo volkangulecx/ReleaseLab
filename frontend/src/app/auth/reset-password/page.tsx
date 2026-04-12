@@ -4,7 +4,8 @@ import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Music, Loader2, CheckCircle } from "lucide-react";
+import { Loader2, CheckCircle } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 import { authApi } from "@/lib/api";
 
 function ResetPasswordForm() {
@@ -112,9 +113,8 @@ export default function ResetPasswordPage() {
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 justify-center mb-8">
-          <Music className="w-8 h-8 text-violet-500" />
-          <span className="text-2xl font-bold">ReleaseLab</span>
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
         </div>
         <Suspense fallback={<Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-500" />}>
           <ResetPasswordForm />

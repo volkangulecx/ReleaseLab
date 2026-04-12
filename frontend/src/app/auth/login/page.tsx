@@ -4,8 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Music, Loader2, Headphones } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
+import Logo from "@/components/ui/Logo";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -39,11 +40,8 @@ export default function LoginPage() {
         <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-fuchsia-600/10 rounded-full blur-[100px]" />
 
         <div className="relative z-10 max-w-lg animate-fade-in">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-violet-600/20 flex items-center justify-center glow-violet-sm">
-              <Headphones className="w-6 h-6 text-violet-400" />
-            </div>
-            <span className="text-xl font-bold text-white/90">ReleaseLab</span>
+          <div className="mb-8">
+            <Logo size="lg" />
           </div>
 
           <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-6">
@@ -77,9 +75,8 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center px-6 py-12 bg-zinc-950">
         <div className="w-full max-w-sm animate-fade-in-up">
           {/* Mobile logo */}
-          <div className="flex items-center gap-2 justify-center mb-8 md:hidden">
-            <Music className="w-8 h-8 text-violet-500" />
-            <span className="text-2xl font-bold">ReleaseLab</span>
+          <div className="flex justify-center mb-8 md:hidden">
+            <Logo size="lg" />
           </div>
 
           <div className="glass rounded-2xl p-8 glow-violet-sm">

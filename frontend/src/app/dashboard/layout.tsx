@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Music, LayoutDashboard, Upload, CreditCard, Crown, Settings, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Upload, CreditCard, Crown, Settings, LogOut, Menu, X } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/lib/store";
 import { startConnection, stopConnection } from "@/lib/signalr";
 
@@ -42,11 +43,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const sidebarContent = (
     <>
       {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-2.5 mb-8 group" onClick={() => setMobileOpen(false)}>
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-violet-400 flex items-center justify-center shadow-lg shadow-violet-500/20 group-hover:shadow-violet-500/40 transition-shadow">
-          <Music className="w-5 h-5 text-white" />
-        </div>
-        <span className="text-lg font-bold">ReleaseLab</span>
+      <Link href="/dashboard" className="mb-8 block" onClick={() => setMobileOpen(false)}>
+        <Logo size="md" />
       </Link>
 
       {/* Nav */}

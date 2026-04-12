@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Music, Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 import api from "@/lib/api";
 
 interface Plan {
@@ -39,9 +40,8 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <nav className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <Music className="w-6 h-6 text-violet-500" />
-          <span className="text-xl font-bold">ReleaseLab</span>
+        <Link href="/">
+          <Logo size="md" />
         </Link>
         <Link href="/auth/login" className="text-zinc-400 hover:text-white transition">
           Sign In

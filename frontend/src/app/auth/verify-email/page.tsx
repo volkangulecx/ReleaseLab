@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Music, Loader2, CheckCircle, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle, RefreshCw } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 
@@ -65,9 +66,8 @@ export default function VerifyEmailPage() {
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 justify-center mb-8">
-          <Music className="w-8 h-8 text-violet-500" />
-          <span className="text-2xl font-bold">ReleaseLab</span>
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
         </div>
 
         <h2 className="text-xl font-bold text-center mb-2">Verify your email</h2>

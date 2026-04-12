@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { Music, Loader2, ArrowLeft, Mail } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
+import Logo from "@/components/ui/Logo";
 import { authApi } from "@/lib/api";
 
 export default function ForgotPasswordPage() {
@@ -27,9 +28,8 @@ export default function ForgotPasswordPage() {
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
-        <div className="flex items-center gap-2 justify-center mb-8">
-          <Music className="w-8 h-8 text-violet-500" />
-          <span className="text-2xl font-bold">ReleaseLab</span>
+        <div className="flex justify-center mb-8">
+          <Logo size="lg" />
         </div>
 
         {sent ? (
