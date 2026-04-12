@@ -2,30 +2,26 @@ import Image from "next/image";
 
 interface LogoProps {
   size?: "sm" | "md" | "lg";
-  showText?: boolean;
   className?: string;
 }
 
 const sizes = {
-  sm: { img: 28, text: "text-lg" },
-  md: { img: 36, text: "text-xl" },
-  lg: { img: 48, text: "text-2xl" },
+  sm: { width: 100, height: 32 },
+  md: { width: 140, height: 40 },
+  lg: { width: 180, height: 52 },
 };
 
-export default function Logo({ size = "md", showText = true, className = "" }: LogoProps) {
+export default function Logo({ size = "md", className = "" }: LogoProps) {
   const s = sizes[size];
 
   return (
-    <span className={`flex items-center gap-2.5 ${className}`}>
-      <Image
-        src="/logo.png"
-        alt="ReleaseLab"
-        width={s.img}
-        height={s.img}
-        className="object-contain"
-        priority
-      />
-      {showText && <span className={`${s.text} font-bold tracking-tight`}>ReleaseLab</span>}
-    </span>
+    <Image
+      src="/logo.png"
+      alt="ReleaseLab"
+      width={s.width}
+      height={s.height}
+      className={`object-contain ${className}`}
+      priority
+    />
   );
 }
