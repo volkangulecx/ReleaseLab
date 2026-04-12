@@ -29,7 +29,7 @@ export default function ForgotPasswordPage() {
     <div className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <Logo size="lg" />
+          <Logo variant="full" />
         </div>
 
         {sent ? (
