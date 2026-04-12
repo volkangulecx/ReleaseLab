@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -118,6 +119,9 @@ builder.Services.AddSerilog(lc => lc
             opt.QueueLimit = 0;
         });
     });
+
+    // ── Validation ──
+    builder.Services.AddValidatorsFromAssemblyContaining<ReleaseLab.Api.Validators.RegisterRequestValidator>();
 
     // ── Health Checks ──
     builder.Services.AddHealthChecks()

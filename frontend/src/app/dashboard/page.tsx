@@ -5,6 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { jobsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
+import { timeAgo } from "@/lib/utils";
 import { Upload, Clock, CheckCircle, XCircle, AlertTriangle, ArrowRight, Download } from "lucide-react";
 
 interface Job {
@@ -141,11 +142,7 @@ export default function DashboardPage() {
                       <span className="font-medium">{job.preset}</span>
                       <span className="text-zinc-500 text-sm">({job.quality})</span>
                     </div>
-                    <p className="text-zinc-500 text-sm mt-1">
-                      {new Date(job.createdAt).toLocaleDateString("tr-TR", {
-                        day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
-                      })}
-                    </p>
+                    <p className="text-zinc-500 text-sm mt-1">{timeAgo(job.createdAt)}</p>
                   </div>
 
                   {job.status === "Processing" && (
