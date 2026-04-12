@@ -90,6 +90,7 @@ builder.Services.AddSerilog(lc => lc
 
     // ── Background Services ──
     builder.Services.AddHostedService<ReleaseLab.Api.Services.CleanupService>();
+    builder.Services.AddHostedService<ReleaseLab.Api.Services.RedisSignalRBridge>();
 
     // ── Rate Limiting ──
     builder.Services.AddRateLimiter(options =>

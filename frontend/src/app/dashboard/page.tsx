@@ -5,7 +5,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { jobsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
-import { Upload, Clock, CheckCircle, XCircle, AlertTriangle, ArrowRight } from "lucide-react";
+import { Upload, Clock, CheckCircle, XCircle, AlertTriangle, ArrowRight, Download } from "lucide-react";
 
 interface Job {
   id: string;
@@ -100,8 +100,17 @@ export default function DashboardPage() {
 
       {/* Jobs */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-xl">
-        <div className="px-6 py-4 border-b border-zinc-800">
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
           <h2 className="font-semibold">Recent Jobs</h2>
+          {jobs.length > 0 && (
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/export/jobs/csv`}
+              className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition"
+              target="_blank"
+            >
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </a>
+          )}
         </div>
 
         {loading ? (
