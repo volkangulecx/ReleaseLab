@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Contracts.Messages;
 using ReleaseLab.Domain.Enums;
@@ -14,6 +15,7 @@ public class MasteringWorker : BackgroundService
     private readonly ILogger<MasteringWorker> _logger;
     private readonly IConnectionMultiplexer _redis;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly string _ffmpegPath;
 
     private static readonly string[] QueueKeys = {
         "queue:mastering:priority-high",
@@ -24,10 +26,12 @@ public class MasteringWorker : BackgroundService
     public MasteringWorker(
         ILogger<MasteringWorker> logger,
         IConnectionMultiplexer redis,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        IConfiguration configuration)
     {
         _logger = logger;
         _redis = redis;
+        _ffmpegPath = configuration["FFmpeg:Path"] ?? "ffmpeg";
         _scopeFactory = scopeFactory;
     }
 
@@ -222,7 +226,7 @@ public class MasteringWorker : BackgroundService
              "alimiter=limit=0.95"
     };
 
-    private static async Task RunFFmpegAsync(string input, string output, string filterChain, bool isWav, CancellationToken ct)
+    private async Task RunFFmpegAsync(string input, string output, string filterChain, bool isWav, CancellationToken ct)
     {
         var args = isWav
             ? $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 \"{output}\""
@@ -232,7 +236,7 @@ public class MasteringWorker : BackgroundService
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = "ffmpeg",
+                FileName = _ffmpegPath,
                 Arguments = $"-y {args}",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

@@ -105,14 +105,23 @@ public class JobsController : ControllerBase
         var userId = Guid.Parse(User.FindFirst("sub")!.Value);
         pageSize = Math.Clamp(pageSize, 1, 50);
 
-        var jobs = await _db.Jobs
-            .Where(j => j.UserId == userId)
+        var query = _db.Jobs.Where(j => j.UserId == userId);
+        var total = await query.CountAsync();
+
+        var jobs = await query
             .OrderByDescending(j => j.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(jobs.Select(MapToResponse));
+        return Ok(new
+        {
+            data = jobs.Select(MapToResponse),
+            total,
+            page,
+            pageSize,
+            totalPages = (int)Math.Ceiling(total / (double)pageSize)
+        });
     }
 
     [HttpGet("{id:guid}")]

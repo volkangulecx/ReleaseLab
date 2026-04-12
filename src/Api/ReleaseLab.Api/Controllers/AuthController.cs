@@ -25,7 +25,16 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        if (await _db.Users.AnyAsync(u => u.Email == request.Email))
+        if (string.IsNullOrWhiteSpace(request.Email) || !request.Email.Contains('@'))
+            return BadRequest(new { message = "Invalid email address" });
+
+        if (string.IsNullOrWhiteSpace(request.Password) || request.Password.Length < 6)
+            return BadRequest(new { message = "Password must be at least 6 characters" });
+
+        if (request.Password.Length > 128)
+            return BadRequest(new { message = "Password too long" });
+
+        if (await _db.Users.AnyAsync(u => u.Email == request.Email.ToLowerInvariant().Trim()))
             return Conflict(new { message = "Email already registered" });
 
         var user = new User

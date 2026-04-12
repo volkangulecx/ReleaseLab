@@ -84,11 +84,20 @@ services:
     ports: ["9000:9000", "9001:9001"]
     volumes: ["minio:/data"]
 
+  frontend:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:5000
+    ports: ["3000:3000"]
+    depends_on: [api]
+
   nginx:
     image: nginx:alpine
     volumes: ["../nginx/nginx.conf:/etc/nginx/nginx.conf:ro"]
     ports: ["80:80"]
-    depends_on: [api, upload]
+    depends_on: [api, upload, frontend]
 
 volumes:
   pgdata: {}

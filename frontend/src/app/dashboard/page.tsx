@@ -33,7 +33,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     jobsApi.list().then(({ data }) => {
-      setJobs(data);
+      setJobs(data.data || data);
       setLoading(false);
     }).catch(() => setLoading(false));
   }, []);
