@@ -8,6 +8,7 @@ public record JobResponse(
     string Quality,
     short Progress,
     string? ErrorMessage,
+    int? EstimatedDurationSec,
     DateTime CreatedAt,
     DateTime? FinishedAt
 );

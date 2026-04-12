@@ -8,6 +8,7 @@ public record MasteringJobMessage
     public string OutputBucket { get; init; } = default!;
     public string Preset { get; init; } = default!;
     public string Quality { get; init; } = default!;
+    public string UserPlan { get; init; } = "Free";
     public int AttemptCount { get; init; }
     public DateTime EnqueuedAt { get; init; }
 }

@@ -155,8 +155,10 @@ public class MasteringWorker : BackgroundService
                 JobId = job.Id, Progress = 60, Stage = "encoding-preview"
             });
 
-            // Process preview MP3 (128kbps with watermark beep)
-            await RunFFmpegAsync(inputPath, outputPreviewMp3, filterChain, OutputFormat.PreviewMp3, ct);
+            // Process preview MP3 — watermark only for Free plan (Sec 15.1: Pro/Studio get clean preview)
+            var isFree = string.Equals(message.UserPlan, "Free", StringComparison.OrdinalIgnoreCase);
+            var previewFormat = isFree ? OutputFormat.PreviewMp3 : OutputFormat.PreviewMp3Clean;
+            await RunFFmpegAsync(inputPath, outputPreviewMp3, filterChain, previewFormat, ct);
 
             await queueService.PublishProgressAsync(new JobProgressMessage
             {
@@ -230,6 +232,7 @@ public class MasteringWorker : BackgroundService
                   "equalizer=f=200:width_type=o:width=2:g=1.5," +
                   "equalizer=f=3000:width_type=o:width=2:g=-1," +
                   "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250," +
+                  "stereotools=widening=0.2," +
                   "loudnorm=I=-14:TP=-1:LRA=11," +
                   "alimiter=limit=0.95",
 
@@ -237,6 +240,7 @@ public class MasteringWorker : BackgroundService
                     "equalizer=f=4000:width_type=o:width=2:g=2," +
                     "equalizer=f=10000:width_type=o:width=2:g=1.5," +
                     "acompressor=threshold=-18dB:ratio=2:attack=10:release=200," +
+                    "stereotools=widening=0.3," +
                     "loudnorm=I=-14:TP=-1:LRA=9," +
                     "alimiter=limit=0.95",
 
@@ -244,6 +248,7 @@ public class MasteringWorker : BackgroundService
                   "equalizer=f=80:width_type=o:width=2:g=2," +
                   "equalizer=f=8000:width_type=o:width=2:g=1.5," +
                   "acompressor=threshold=-18dB:ratio=3:attack=10:release=200," +
+                  "stereotools=widening=0.15," +
                   "loudnorm=I=-9:TP=-1:LRA=7," +
                   "alimiter=limit=0.95",
 
@@ -251,6 +256,7 @@ public class MasteringWorker : BackgroundService
              "equalizer=f=200:width_type=o:width=2:g=0.5," +
              "equalizer=f=5000:width_type=o:width=2:g=0.5," +
              "acompressor=threshold=-20dB:ratio=2:attack=12:release=200," +
+             "stereotools=widening=0.1," +
              "loudnorm=I=-14:TP=-1:LRA=11," +
              "alimiter=limit=0.95"
     };
@@ -259,7 +265,8 @@ public class MasteringWorker : BackgroundService
     {
         MasterWav,
         MasterMp3,
-        PreviewMp3
+        PreviewMp3,
+        PreviewMp3Clean  // No watermark — for Pro/Studio plans
     }
 
     private async Task RunFFmpegAsync(string input, string output, string filterChain, OutputFormat format, CancellationToken ct)
@@ -290,6 +297,11 @@ public class MasteringWorker : BackgroundService
                     $"aloop=loop=-1:size=44100*30[beep];" +
                     $"[master][beep]amix=inputs=2:duration=first:dropout_transition=0";
                 args = $"-i \"{input}\" -filter_complex \"{watermarkFilter}\" -ar 44100 -b:a 128k \"{output}\"";
+                break;
+
+            case OutputFormat.PreviewMp3Clean:
+                // Clean preview for Pro/Studio plans — 128kbps, no watermark
+                args = $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 -b:a 128k \"{output}\"";
                 break;
 
             default:

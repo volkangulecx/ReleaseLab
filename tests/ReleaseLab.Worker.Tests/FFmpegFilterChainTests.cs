@@ -222,12 +222,12 @@ public class FFmpegFilterChainTests
     [InlineData("bright")]
     [InlineData("loud")]
     [InlineData("balanced")]
-    public void BuildFilterChain_AllPresets_HaveSixFilters(string preset)
+    public void BuildFilterChain_AllPresets_HaveSevenFilters(string preset)
     {
         var result = InvokeBuildFilterChain(preset);
 
-        // Filters are comma-separated: highpass, eq1, eq2, compressor, loudnorm, limiter
+        // Filters are comma-separated: highpass, eq1, eq2, compressor, stereotools, loudnorm, limiter
         var filters = result.Split(',');
-        filters.Should().HaveCount(6);
+        filters.Should().HaveCount(7);
     }
 }

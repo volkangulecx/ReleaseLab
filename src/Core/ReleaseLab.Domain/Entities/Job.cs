@@ -17,6 +17,7 @@ public class Job
     public string? ErrorMessage { get; set; }
     public short AttemptCount { get; set; }
     public int CreditsCost { get; set; }
+    public int? EstimatedDurationSec { get; set; }
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
     public DateTime CreatedAt { get; set; }

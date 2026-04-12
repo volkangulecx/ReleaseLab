@@ -60,6 +60,9 @@ public class JobsController : ControllerBase
         if (creditCost > 0 && user.CreditBalance < creditCost)
             return BadRequest(new { message = "Insufficient credits" });
 
+        // Estimate processing duration based on file duration (~2x realtime for FFmpeg processing)
+        var estimatedSec = file.DurationSec.HasValue ? (int)(file.DurationSec.Value * 2) + 5 : 30;
+
         var job = new Job
         {
             Id = Guid.NewGuid(),
@@ -69,6 +72,7 @@ public class JobsController : ControllerBase
             Quality = quality,
             Status = JobStatus.Queued,
             CreditsCost = creditCost,
+            EstimatedDurationSec = estimatedSec,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -102,6 +106,7 @@ public class JobsController : ControllerBase
             OutputBucket = ProcessedBucket,
             Preset = preset.ToString(),
             Quality = quality.ToString(),
+            UserPlan = user.Plan.ToString(),
             AttemptCount = 0,
             EnqueuedAt = DateTime.UtcNow
         }, user.Plan);
@@ -244,6 +249,6 @@ public class JobsController : ControllerBase
 
     private static JobResponse MapToResponse(Job j) => new(
         j.Id, j.Status.ToString(), j.Preset.ToString(), j.Quality.ToString(),
-        j.Progress, j.ErrorMessage, j.CreatedAt, j.FinishedAt
+        j.Progress, j.ErrorMessage, j.EstimatedDurationSec, j.CreatedAt, j.FinishedAt
     );
 }
