@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Storage\ReleaseLab.Infrastructure.Storage.csproj" />
     <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Payments\ReleaseLab.Infrastructure.Payments.csproj" />
     <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Email\ReleaseLab.Infrastructure.Email.csproj" />
+    <ProjectReference Include="..\..\Infrastructure\ReleaseLab.Infrastructure.Audio\ReleaseLab.Infrastructure.Audio.csproj" />
   </ItemGroup>
 
   <ItemGroup>

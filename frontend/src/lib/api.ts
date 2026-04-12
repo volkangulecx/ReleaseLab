@@ -51,6 +51,14 @@ export const authApi = {
     api.post("/api/v1/auth/login", { email, password }),
   logout: () => api.post("/api/v1/auth/logout"),
   me: () => api.get("/api/v1/me"),
+  sendVerification: (email: string) =>
+    api.post("/api/v1/auth/send-verification", { email }),
+  verifyEmail: (email: string, code: string) =>
+    api.post("/api/v1/auth/verify-email", { email, code }),
+  forgotPassword: (email: string) =>
+    api.post("/api/v1/auth/forgot-password", { email }),
+  resetPassword: (email: string, token: string, newPassword: string) =>
+    api.post("/api/v1/auth/reset-password", { email, token, newPassword }),
 };
 
 // Uploads
@@ -78,4 +86,10 @@ export const creditsApi = {
   balance: () => api.get("/api/v1/credits/balance"),
   purchase: (creditAmount: number, successUrl: string, cancelUrl: string) =>
     api.post("/api/v1/credits/purchase", { creditAmount, successUrl, cancelUrl }),
+};
+
+// Analysis
+export const analysisApi = {
+  analyzeJob: (jobId: string, type: "input" | "output") =>
+    api.get(`/api/v1/analysis/job/${jobId}?type=${type}`),
 };

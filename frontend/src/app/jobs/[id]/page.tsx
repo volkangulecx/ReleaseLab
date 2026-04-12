@@ -5,7 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { ArrowLeft, CheckCircle, XCircle, Download, Loader2, Music } from "lucide-react";
-import { jobsApi } from "@/lib/api";
+import { jobsApi, analysisApi } from "@/lib/api";
+import ABComparison from "@/components/ui/ABComparison";
 
 interface Job {
   id: string;
@@ -18,65 +19,91 @@ interface Job {
   finishedAt: string | null;
 }
 
+interface Analysis {
+  duration: number;
+  sampleRate: number;
+  channels: number;
+  codec: string;
+  peakDb: number;
+  loudnessLufs: number;
+  waveform: number[];
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [inputAnalysis, setInputAnalysis] = useState<Analysis | null>(null);
+  const [outputAnalysis, setOutputAnalysis] = useState<Analysis | null>(null);
+  const [inputUrl, setInputUrl] = useState<string | null>(null);
+  const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
-    jobsApi.get(id).then(({ data }) => {
-      setJob(data);
-      setLoading(false);
-
-      // Start SSE if job is in progress
-      if (data.status === "Queued" || data.status === "Processing") {
-        startSSE();
-      }
-    }).catch(() => {
-      toast.error("Job not found");
-      router.push("/dashboard");
-    });
-
+    loadJob();
     return () => eventSourceRef.current?.close();
   }, [id]);
 
-  const startSSE = () => {
-    const token = localStorage.getItem("accessToken");
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-    const es = new EventSource(`${baseUrl}/api/v1/jobs/${id}/stream?access_token=${token}`);
+  const loadJob = async () => {
+    try {
+      const { data } = await jobsApi.get(id);
+      setJob(data);
+      setLoading(false);
 
-    es.onmessage = (event) => {
+      if (data.status === "Queued" || data.status === "Processing") {
+        startPolling();
+      }
+
+      if (data.status === "Completed") {
+        loadAnalysis();
+        loadDownloadUrls();
+      }
+    } catch {
+      toast.error("Job not found");
+      router.push("/dashboard");
+    }
+  };
+
+  const startPolling = () => {
+    const interval = setInterval(async () => {
       try {
-        const data = JSON.parse(event.data);
-        setJob((prev) =>
-          prev ? { ...prev, progress: data.progress, status: data.status || prev.status } : prev
-        );
-
-        if (data.progress === 100 || data.status === "Completed" || data.status === "Failed") {
-          es.close();
-          // Reload full job data
-          jobsApi.get(id).then(({ data }) => setJob(data));
+        const { data } = await jobsApi.get(id);
+        setJob(data);
+        if (data.status === "Completed" || data.status === "Failed" || data.status === "Dead") {
+          clearInterval(interval);
+          if (data.status === "Completed") {
+            loadAnalysis();
+            loadDownloadUrls();
+          }
         }
       } catch {}
-    };
+    }, 2000);
 
-    es.onerror = () => {
-      es.close();
-      // Poll fallback
-      const interval = setInterval(async () => {
-        try {
-          const { data } = await jobsApi.get(id);
-          setJob(data);
-          if (data.status === "Completed" || data.status === "Failed" || data.status === "Dead") {
-            clearInterval(interval);
-          }
-        } catch {}
-      }, 3000);
-    };
+    // Cleanup on unmount
+    eventSourceRef.current = { close: () => clearInterval(interval) } as any;
+  };
 
-    eventSourceRef.current = es;
+  const loadAnalysis = async () => {
+    try {
+      const [inp, out] = await Promise.allSettled([
+        analysisApi.analyzeJob(id, "input"),
+        analysisApi.analyzeJob(id, "output"),
+      ]);
+      if (inp.status === "fulfilled") setInputAnalysis(inp.value.data);
+      if (out.status === "fulfilled") setOutputAnalysis(out.value.data);
+    } catch {}
+  };
+
+  const loadDownloadUrls = async () => {
+    try {
+      const [preview, master] = await Promise.allSettled([
+        jobsApi.download(id, "preview"),
+        jobsApi.download(id, "master"),
+      ]);
+      if (preview.status === "fulfilled") setOutputUrl(preview.value.data.downloadUrl);
+      if (master.status === "fulfilled") setInputUrl(master.value.data.downloadUrl);
+    } catch {}
   };
 
   const handleDownload = async (kind: "preview" | "master") => {
@@ -101,7 +128,7 @@ export default function JobDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div className="flex-1 flex items-center justify-center min-h-screen">
         <Loader2 className="w-8 h-8 animate-spin text-violet-500" />
       </div>
     );
@@ -114,7 +141,7 @@ export default function JobDetailPage() {
   const isFailed = job.status === "Failed" || job.status === "Dead";
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
+    <div className="max-w-3xl mx-auto p-8">
       <Link
         href="/dashboard"
         className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition mb-6"
@@ -122,7 +149,7 @@ export default function JobDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Back to Dashboard
       </Link>
 
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6">
           <div className="w-12 h-12 bg-violet-500/10 rounded-xl flex items-center justify-center">
@@ -133,6 +160,9 @@ export default function JobDetailPage() {
             <p className="text-zinc-500 text-sm">
               {job.quality} &middot;{" "}
               {new Date(job.createdAt).toLocaleString("tr-TR")}
+              {job.finishedAt && (
+                <> &middot; {Math.round((new Date(job.finishedAt).getTime() - new Date(job.createdAt).getTime()) / 1000)}s</>
+              )}
             </p>
           </div>
         </div>
@@ -218,6 +248,19 @@ export default function JobDetailPage() {
           </Link>
         </div>
       </div>
+
+      {/* A/B Comparison — only when completed */}
+      {isDone && inputUrl && outputUrl && (
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Before / After</h2>
+          <ABComparison
+            inputUrl={inputUrl}
+            outputUrl={outputUrl}
+            inputAnalysis={inputAnalysis}
+            outputAnalysis={outputAnalysis}
+          />
+        </div>
+      )}
     </div>
   );
 }

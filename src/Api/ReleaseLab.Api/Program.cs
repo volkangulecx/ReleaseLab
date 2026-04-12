@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using Minio;
 using ReleaseLab.Api.Middleware;
 using ReleaseLab.Api.Services;
+using ReleaseLab.Infrastructure.Audio.Services;
 using ReleaseLab.Infrastructure.Data.Seed;
 using ReleaseLab.Infrastructure.Email.Services;
 using ReleaseLab.Application.Interfaces;
@@ -61,6 +62,7 @@ try
     builder.Services.AddScoped<IPaymentService, StripePaymentService>();
     builder.Services.AddSingleton<IJwtService, JwtService>();
     builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
+    builder.Services.AddSingleton<IAudioAnalysisService, FFmpegAnalysisService>();
 
     // ── Auth ──
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
