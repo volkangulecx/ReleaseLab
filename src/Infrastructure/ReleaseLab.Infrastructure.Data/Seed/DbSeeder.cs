@@ -26,6 +26,7 @@ public static class DbSeeder
             DisplayName = "Admin",
             Plan = UserPlan.Studio,
             EmailVerified = true,
+            IsAdmin = true,
             CreditBalance = 100,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow

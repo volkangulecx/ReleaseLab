@@ -7,6 +7,8 @@ interface User {
   displayName: string | null;
   plan: string;
   creditBalance: number;
+  emailVerified: boolean;
+  isAdmin: boolean;
   createdAt: string;
 }
 

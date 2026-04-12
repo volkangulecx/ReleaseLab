@@ -11,5 +11,7 @@ public record UserProfileResponse(
     string? DisplayName,
     string Plan,
     int CreditBalance,
+    bool EmailVerified,
+    bool IsAdmin,
     DateTime CreatedAt
 );

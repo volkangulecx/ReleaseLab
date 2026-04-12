@@ -10,6 +10,7 @@ public class User
     public string? DisplayName { get; set; }
     public UserPlan Plan { get; set; } = UserPlan.Free;
     public bool EmailVerified { get; set; }
+    public bool IsAdmin { get; set; }
     public int CreditBalance { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

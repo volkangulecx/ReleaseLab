@@ -79,7 +79,10 @@ builder.Services.AddSerilog(lc => lc
                 NameClaimType = "sub"
             };
         });
-    builder.Services.AddAuthorization();
+    builder.Services.AddAuthorization(options =>
+    {
+        options.AddPolicy("AdminOnly", policy => policy.RequireClaim("role", "admin"));
+    });
 
     // ── Rate Limiting ──
     builder.Services.AddRateLimiter(options =>

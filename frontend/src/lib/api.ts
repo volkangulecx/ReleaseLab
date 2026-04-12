@@ -93,3 +93,19 @@ export const analysisApi = {
   analyzeJob: (jobId: string, type: "input" | "output") =>
     api.get(`/api/v1/analysis/job/${jobId}?type=${type}`),
 };
+
+// Admin
+export const adminApi = {
+  stats: () => api.get("/api/admin/jobs/stats"),
+  users: (page?: number, search?: string) =>
+    api.get(`/api/admin/users?page=${page || 1}&search=${search || ""}`),
+  userDetail: (id: string) => api.get(`/api/admin/users/${id}`),
+  addCredits: (id: string, amount: number) =>
+    api.post(`/api/admin/users/${id}/credits`, { amount }),
+  updatePlan: (id: string, plan: string) =>
+    api.put(`/api/admin/users/${id}/plan`, { plan }),
+  jobs: (page?: number, status?: string) =>
+    api.get(`/api/admin/jobs?page=${page || 1}&status=${status || ""}`),
+  retryJob: (id: string) => api.post(`/api/admin/jobs/${id}/retry`),
+  cancelJob: (id: string) => api.post(`/api/admin/jobs/${id}/cancel`),
+};

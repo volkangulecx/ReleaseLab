@@ -114,7 +114,8 @@ public class AuthController : ControllerBase
 
         return Ok(new UserProfileResponse(
             user.Id, user.Email, user.DisplayName,
-            user.Plan.ToString(), user.CreditBalance, user.CreatedAt
+            user.Plan.ToString(), user.CreditBalance,
+            user.EmailVerified, user.IsAdmin, user.CreatedAt
         ));
     }
 
@@ -134,7 +135,8 @@ public class AuthController : ControllerBase
 
         return Ok(new UserProfileResponse(
             user.Id, user.Email, user.DisplayName,
-            user.Plan.ToString(), user.CreditBalance, user.CreatedAt
+            user.Plan.ToString(), user.CreditBalance,
+            user.EmailVerified, user.IsAdmin, user.CreatedAt
         ));
     }
 
