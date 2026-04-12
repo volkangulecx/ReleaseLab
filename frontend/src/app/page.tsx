@@ -23,7 +23,7 @@ export default function LandingPage() {
       <nav className="glass-strong sticky top-0 z-50 backdrop-blur-xl">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <Link href="/">
-            <Logo variant="sidebar" />
+            <Logo variant="navbar" />
           </Link>
           <div className="flex items-center gap-4">
             <Link
@@ -368,7 +368,7 @@ export default function LandingPage() {
       <footer className="border-t border-zinc-800/60 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Logo variant="icon" />
+            <Logo variant="compact" />
             <span className="text-zinc-500 text-sm ml-1">
               &copy; {new Date().getFullYear()}
             </span>

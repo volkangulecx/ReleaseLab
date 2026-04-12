@@ -114,7 +114,7 @@ export default function ResetPasswordPage() {
     <div className="flex-1 flex items-center justify-center px-6 py-12">
       <div className="w-full max-w-sm">
         <div className="flex justify-center mb-8">
-          <Logo variant="full" />
+          <Logo variant="page" />
         </div>
         <Suspense fallback={<Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-500" />}>
           <ResetPasswordForm />

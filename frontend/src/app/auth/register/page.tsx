@@ -53,7 +53,7 @@ export default function RegisterPage() {
 
         <div className="relative z-10 max-w-lg animate-fade-in">
           <div className="mb-8">
-            <Logo variant="full" />
+            <Logo variant="page" />
           </div>
 
           <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-4">
@@ -88,7 +88,7 @@ export default function RegisterPage() {
         <div className="w-full max-w-sm animate-fade-in-up">
           {/* Mobile logo */}
           <div className="flex justify-center mb-8 md:hidden">
-            <Logo variant="full" />
+            <Logo variant="page" />
           </div>
 
           <div className="glass rounded-2xl p-8 glow-violet-sm">

@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <>
       {/* Logo */}
       <Link href="/dashboard" className="mb-8 block" onClick={() => setMobileOpen(false)}>
-        <Logo variant="sidebar" />
+        <Logo variant="navbar" />
       </Link>
 
       {/* Nav */}
