@@ -113,7 +113,8 @@ public class MasteringWorker : BackgroundService
             Directory.CreateDirectory(tempDir);
             var inputPath = Path.Combine(tempDir, "input.wav");
             var outputWav = Path.Combine(tempDir, "master.wav");
-            var outputMp3 = Path.Combine(tempDir, "preview.mp3");
+            var outputMasterMp3 = Path.Combine(tempDir, "master.mp3");
+            var outputPreviewMp3 = Path.Combine(tempDir, "preview.mp3");
 
             // Download file from S3 using MinIO client directly
             var minio = scope.ServiceProvider.GetRequiredService<Minio.IMinioClient>();
@@ -133,17 +134,26 @@ public class MasteringWorker : BackgroundService
 
             // Build FFmpeg filter chain based on preset
             var filterChain = BuildFilterChain(message.Preset);
+            var isHiRes = string.Equals(message.Quality, "HiRes", StringComparison.OrdinalIgnoreCase);
 
-            // Process WAV output
-            await RunFFmpegAsync(inputPath, outputWav, filterChain, isWav: true, ct);
+            // Process master WAV (44100Hz, full quality)
+            await RunFFmpegAsync(inputPath, outputWav, filterChain, OutputFormat.MasterWav, ct);
 
             await queueService.PublishProgressAsync(new JobProgressMessage
             {
-                JobId = job.Id, Progress = 60, Stage = "encoding"
+                JobId = job.Id, Progress = 45, Stage = "encoding-master-mp3"
             });
 
-            // Process MP3 preview
-            await RunFFmpegAsync(inputPath, outputMp3, filterChain, isWav: false, ct);
+            // Process master MP3 (320kbps, full quality)
+            await RunFFmpegAsync(inputPath, outputMasterMp3, filterChain, OutputFormat.MasterMp3, ct);
+
+            await queueService.PublishProgressAsync(new JobProgressMessage
+            {
+                JobId = job.Id, Progress = 60, Stage = "encoding-preview"
+            });
+
+            // Process preview MP3 (128kbps with watermark beep)
+            await RunFFmpegAsync(inputPath, outputPreviewMp3, filterChain, OutputFormat.PreviewMp3, ct);
 
             await queueService.PublishProgressAsync(new JobProgressMessage
             {
@@ -154,8 +164,15 @@ public class MasteringWorker : BackgroundService
             var userId = message.UserId;
             var outputBucket = message.OutputBucket;
 
-            await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/master.wav", outputWav, ct);
-            await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/preview.mp3", outputMp3, ct);
+            // Always upload preview MP3
+            await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/preview.mp3", outputPreviewMp3, ct);
+
+            // Only upload master files (WAV + 320kbps MP3) if quality is HiRes
+            if (isHiRes)
+            {
+                await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/master.wav", outputWav, ct);
+                await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/master.mp3", outputMasterMp3, ct);
+            }
 
             // Update job status
             job.Status = JobStatus.Completed;
@@ -168,7 +185,7 @@ public class MasteringWorker : BackgroundService
                 JobId = job.Id, Progress = 100, Stage = "completed"
             });
 
-            _logger.LogInformation("Job {JobId} completed successfully", job.Id);
+            _logger.LogInformation("Job {JobId} completed successfully (HiRes={IsHiRes})", job.Id, isHiRes);
 
             // Cleanup temp files
             try { Directory.Delete(tempDir, true); } catch { }
@@ -226,11 +243,46 @@ public class MasteringWorker : BackgroundService
              "alimiter=limit=0.95"
     };
 
-    private async Task RunFFmpegAsync(string input, string output, string filterChain, bool isWav, CancellationToken ct)
+    private enum OutputFormat
     {
-        var args = isWav
-            ? $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 \"{output}\""
-            : $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 -b:a 320k \"{output}\"";
+        MasterWav,
+        MasterMp3,
+        PreviewMp3
+    }
+
+    private async Task RunFFmpegAsync(string input, string output, string filterChain, OutputFormat format, CancellationToken ct)
+    {
+        string args;
+
+        switch (format)
+        {
+            case OutputFormat.MasterWav:
+                // Full quality WAV at 44100Hz
+                args = $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 \"{output}\"";
+                break;
+
+            case OutputFormat.MasterMp3:
+                // Full quality MP3 at 320kbps
+                args = $"-i \"{input}\" -af \"{filterChain}\" -ar 44100 -b:a 320k \"{output}\"";
+                break;
+
+            case OutputFormat.PreviewMp3:
+                // Preview MP3: 128kbps with a subtle 15kHz watermark tone mixed in every 30 seconds.
+                // Uses a complex filter graph:
+                //   [0:a] applies the mastering filter chain to the input audio
+                //   sine generates a quiet 15kHz beep (1 second on, 29 seconds off, repeating)
+                //   amix combines the two streams, keeping the duration of the first (the music)
+                var watermarkFilter =
+                    $"[0:a]{filterChain}[master];" +
+                    $"sine=frequency=15000:sample_rate=44100:duration=1,volume=0.03," +
+                    $"aloop=loop=-1:size=44100*30[beep];" +
+                    $"[master][beep]amix=inputs=2:duration=first:dropout_transition=0";
+                args = $"-i \"{input}\" -filter_complex \"{watermarkFilter}\" -ar 44100 -b:a 128k \"{output}\"";
+                break;
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(format));
+        }
 
         var process = new Process
         {

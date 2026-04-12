@@ -11,6 +11,7 @@ public interface IAppDbContext
     DbSet<CreditLedgerEntry> CreditLedgerEntries { get; }
     DbSet<Payment> Payments { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<VerificationCode> VerificationCodes { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

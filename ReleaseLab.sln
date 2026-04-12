@@ -45,6 +45,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseLab.IntegrationTests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseLab.Worker.Tests", "tests\ReleaseLab.Worker.Tests\ReleaseLab.Worker.Tests.csproj", "{7D036479-6D27-446F-BEB3-B7F38279EA25}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ReleaseLab.Infrastructure.Email", "src\Infrastructure\ReleaseLab.Infrastructure.Email\ReleaseLab.Infrastructure.Email.csproj", "{749EEA93-9C33-4331-8648-4F682D5A9D26}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -114,6 +116,10 @@ Global
 		{7D036479-6D27-446F-BEB3-B7F38279EA25}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7D036479-6D27-446F-BEB3-B7F38279EA25}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7D036479-6D27-446F-BEB3-B7F38279EA25}.Release|Any CPU.Build.0 = Release|Any CPU
+		{749EEA93-9C33-4331-8648-4F682D5A9D26}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{749EEA93-9C33-4331-8648-4F682D5A9D26}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{749EEA93-9C33-4331-8648-4F682D5A9D26}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{749EEA93-9C33-4331-8648-4F682D5A9D26}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{AE883236-606C-4E19-A569-BACA0ED0B354} = {5C494D79-B823-413C-A591-743B91F803B2}
@@ -135,5 +141,6 @@ Global
 		{7E0E16F2-4982-47A2-86AD-7336260786D5} = {5067B9A9-1A17-4133-AA12-0D9515C34CA5}
 		{75199DB9-E91A-4837-AF12-83078B303936} = {5067B9A9-1A17-4133-AA12-0D9515C34CA5}
 		{7D036479-6D27-446F-BEB3-B7F38279EA25} = {5067B9A9-1A17-4133-AA12-0D9515C34CA5}
+		{749EEA93-9C33-4331-8648-4F682D5A9D26} = {724AD25E-B7FC-433B-A8DC-434B4CFFC485}
 	EndGlobalSection
 EndGlobal

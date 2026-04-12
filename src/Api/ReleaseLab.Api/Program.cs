@@ -9,6 +9,7 @@ using Minio;
 using ReleaseLab.Api.Middleware;
 using ReleaseLab.Api.Services;
 using ReleaseLab.Infrastructure.Data.Seed;
+using ReleaseLab.Infrastructure.Email.Services;
 using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Infrastructure.Data;
 using ReleaseLab.Infrastructure.Payments.Services;
@@ -59,6 +60,7 @@ try
     builder.Services.AddScoped<IStorageService, MinioStorageService>();
     builder.Services.AddScoped<IPaymentService, StripePaymentService>();
     builder.Services.AddSingleton<IJwtService, JwtService>();
+    builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
 
     // ── Auth ──
     builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

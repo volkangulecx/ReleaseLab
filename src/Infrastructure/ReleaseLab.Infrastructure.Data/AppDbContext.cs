@@ -14,6 +14,7 @@ public class AppDbContext : DbContext, IAppDbContext
     public DbSet<CreditLedgerEntry> CreditLedgerEntries => Set<CreditLedgerEntry>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
