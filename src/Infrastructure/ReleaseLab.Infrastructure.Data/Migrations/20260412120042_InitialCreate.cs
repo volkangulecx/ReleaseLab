@@ -195,7 +195,7 @@ namespace ReleaseLab.Infrastructure.Data.Migrations
                 name: "IX_jobs_Status",
                 table: "jobs",
                 column: "Status",
-                filter: "status IN ('Queued','Processing')");
+                filter: "\"Status\" IN ('Queued','Processing')");
 
             migrationBuilder.CreateIndex(
                 name: "IX_jobs_UserId_CreatedAt",

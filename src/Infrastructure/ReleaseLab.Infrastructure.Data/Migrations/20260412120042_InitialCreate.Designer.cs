@@ -12,7 +12,7 @@ using ReleaseLab.Infrastructure.Data;
 namespace ReleaseLab.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260412113015_InitialCreate")]
+    [Migration("20260412120042_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -184,7 +184,7 @@ namespace ReleaseLab.Infrastructure.Data.Migrations
                     b.HasIndex("OutputFileId");
 
                     b.HasIndex("Status")
-                        .HasFilter("status IN ('Queued','Processing')");
+                        .HasFilter("\"Status\" IN ('Queued','Processing')");
 
                     b.HasIndex("UserId", "CreatedAt")
                         .IsDescending(false, true);

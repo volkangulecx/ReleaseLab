@@ -181,7 +181,7 @@ namespace ReleaseLab.Infrastructure.Data.Migrations
                     b.HasIndex("OutputFileId");
 
                     b.HasIndex("Status")
-                        .HasFilter("status IN ('Queued','Processing')");
+                        .HasFilter("\"Status\" IN ('Queued','Processing')");
 
                     b.HasIndex("UserId", "CreatedAt")
                         .IsDescending(false, true);

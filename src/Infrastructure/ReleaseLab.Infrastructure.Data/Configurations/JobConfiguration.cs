@@ -22,7 +22,7 @@ public class JobConfiguration : IEntityTypeConfiguration<Job>
         builder.HasIndex(j => new { j.UserId, j.CreatedAt })
             .IsDescending(false, true);
         builder.HasIndex(j => j.Status)
-            .HasFilter("status IN ('Queued','Processing')");
+            .HasFilter("\"Status\" IN ('Queued','Processing')");
 
         builder.HasOne(j => j.User)
             .WithMany(u => u.Jobs)
