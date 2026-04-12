@@ -94,6 +94,19 @@ export const analysisApi = {
     api.get(`/api/v1/analysis/job/${jobId}?type=${type}`),
 };
 
+// Mix
+export const mixApi = {
+  createProject: (name: string) => api.post("/api/v1/mix/projects", { name }),
+  listProjects: () => api.get("/api/v1/mix/projects"),
+  getProject: (id: string) => api.get(`/api/v1/mix/projects/${id}`),
+  addTrack: (projectId: string, fileId: string, name?: string) =>
+    api.post(`/api/v1/mix/projects/${projectId}/tracks`, { fileId, name }),
+  updateTrack: (projectId: string, trackId: string, data: any) =>
+    api.put(`/api/v1/mix/projects/${projectId}/tracks/${trackId}`, data),
+  deleteTrack: (projectId: string, trackId: string) =>
+    api.delete(`/api/v1/mix/projects/${projectId}/tracks/${trackId}`),
+};
+
 // Admin
 export const adminApi = {
   stats: () => api.get("/api/admin/jobs/stats"),

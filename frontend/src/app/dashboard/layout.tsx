@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { LayoutDashboard, Upload, CreditCard, Crown, Settings, LogOut, Menu, X } from "lucide-react";
+import { LayoutDashboard, Upload, Sliders, CreditCard, Crown, Settings, LogOut, Menu, X } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 import { useAuthStore } from "@/lib/store";
 import { startConnection, stopConnection } from "@/lib/signalr";
@@ -11,6 +11,7 @@ import { startConnection, stopConnection } from "@/lib/signalr";
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/dashboard/upload", icon: Upload, label: "New Master" },
+  { href: "/dashboard/mixing", icon: Sliders, label: "Mixing" },
   { href: "/dashboard/credits", icon: CreditCard, label: "Credits" },
   { href: "/dashboard/plan", icon: Crown, label: "Plan" },
   { href: "/dashboard/settings", icon: Settings, label: "Settings" },

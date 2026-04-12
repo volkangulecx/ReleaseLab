@@ -60,6 +60,18 @@ services:
       replicas: 2
     depends_on: [redis, minio, postgres]
 
+  worker-ai:
+    build:
+      context: ../../src/Workers/ReleaseLab.Worker.AI
+      dockerfile: Dockerfile
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - S3_ENDPOINT=minio:9000
+      - S3_ACCESS_KEY=minioadmin
+      - S3_SECRET_KEY=minioadmin
+    depends_on: [redis, minio]
+    ports: ["8081:8081"]
+
   postgres:
     image: postgres:16-alpine
     environment:
