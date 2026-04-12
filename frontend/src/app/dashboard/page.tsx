@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 import { jobsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { Upload, Clock, CheckCircle, XCircle, AlertTriangle, ArrowRight } from "lucide-react";
@@ -31,12 +32,38 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const prevJobsRef = useRef<Job[]>([]);
+
+  const fetchJobs = () => {
     jobsApi.list().then(({ data }) => {
-      setJobs(data.data || data);
+      const newJobs: Job[] = data.data || data;
+      const prev = prevJobsRef.current;
+
+      // Notify on newly completed jobs
+      for (const nj of newJobs) {
+        const old = prev.find(j => j.id === nj.id);
+        if (old && old.status === "Processing" && nj.status === "Completed") {
+          toast.success(`${nj.preset} master completed!`);
+        }
+      }
+
+      prevJobsRef.current = newJobs;
+      setJobs(newJobs);
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, []);
+  };
+
+  // Initial load
+  useEffect(() => { fetchJobs(); }, []);
+
+  // Auto-refresh when active jobs exist
+  const hasActive = jobs.some(j => j.status === "Queued" || j.status === "Processing");
+
+  useEffect(() => {
+    if (!hasActive) return;
+    const id = setInterval(fetchJobs, 5000);
+    return () => clearInterval(id);
+  }, [hasActive]);
 
   return (
     <div>

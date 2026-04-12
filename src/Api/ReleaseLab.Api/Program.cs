@@ -84,6 +84,9 @@ builder.Services.AddSerilog(lc => lc
         options.AddPolicy("AdminOnly", policy => policy.RequireClaim("role", "admin"));
     });
 
+    // ── Background Services ──
+    builder.Services.AddHostedService<ReleaseLab.Api.Services.CleanupService>();
+
     // ── Rate Limiting ──
     builder.Services.AddRateLimiter(options =>
     {
