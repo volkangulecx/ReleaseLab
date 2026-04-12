@@ -56,6 +56,21 @@ export default function DashboardPage() {
   // Initial load
   useEffect(() => { fetchJobs(); }, []);
 
+  // Listen for SignalR events to auto-refresh
+  useEffect(() => {
+    const onCompleted = () => fetchJobs();
+    const onFailed = () => fetchJobs();
+    const onProgress = () => fetchJobs();
+    window.addEventListener("job:completed", onCompleted);
+    window.addEventListener("job:failed", onFailed);
+    window.addEventListener("job:progress", onProgress);
+    return () => {
+      window.removeEventListener("job:completed", onCompleted);
+      window.removeEventListener("job:failed", onFailed);
+      window.removeEventListener("job:progress", onProgress);
+    };
+  }, []);
+
   // Auto-refresh when active jobs exist
   const hasActive = jobs.some(j => j.status === "Queued" || j.status === "Processing");
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Music, LayoutDashboard, Upload, CreditCard, Crown, Settings, LogOut, Menu, X } from "lucide-react";
 import { useAuthStore } from "@/lib/store";
+import { startConnection, stopConnection } from "@/lib/signalr";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, fetchUser, logout } = useAuthStore();
@@ -18,6 +19,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!loading && !user) router.push("/auth/login");
   }, [loading, user, router]);
+
+  // Start SignalR connection when user is logged in
+  useEffect(() => {
+    if (user) {
+      startConnection();
+      return () => stopConnection();
+    }
+  }, [user]);
 
   if (loading) {
     return (

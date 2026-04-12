@@ -84,6 +84,10 @@ builder.Services.AddSerilog(lc => lc
         options.AddPolicy("AdminOnly", policy => policy.RequireClaim("role", "admin"));
     });
 
+    // ── SignalR ──
+    builder.Services.AddSignalR();
+    builder.Services.AddSingleton<INotificationService, ReleaseLab.Api.Services.SignalRNotificationService>();
+
     // ── Background Services ──
     builder.Services.AddHostedService<ReleaseLab.Api.Services.CleanupService>();
 
@@ -206,6 +210,7 @@ builder.Services.AddSerilog(lc => lc
     app.UseAuthorization();
 
     app.MapControllers();
+    app.MapHub<ReleaseLab.Api.Hubs.JobHub>("/hubs/jobs");
 
     // Observability
     app.MapHealthChecks("/health");
