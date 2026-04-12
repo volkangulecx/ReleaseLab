@@ -55,11 +55,19 @@ export default function UploadPage() {
   }, []);
 
   const handleFile = async (f: File) => {
-    const allowed = ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac"];
-    if (!allowed.includes(f.type)) {
+    const allowedMimes = ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac"];
+    const allowedExts = [".wav", ".mp3", ".flac"];
+    const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
+    const mimeOk = allowedMimes.includes(f.type) || f.type === "";
+    const extOk = allowedExts.includes(ext);
+
+    if (!mimeOk && !extOk) {
       toast.error("Unsupported format. Use WAV, MP3, or FLAC.");
       return;
     }
+
+    // Resolve content type from extension if browser didn't provide one
+    const contentType = f.type || (ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "audio/flac");
     if (f.size > 500 * 1024 * 1024) {
       toast.error("File too large (max 500MB)");
       return;
@@ -70,10 +78,10 @@ export default function UploadPage() {
     setUploadProgress(0);
 
     try {
-      const { data: initData } = await uploadApi.init(f.name, f.size, f.type);
+      const { data: initData } = await uploadApi.init(f.name, f.size, contentType);
 
       await axios.put(initData.uploadUrl, f, {
-        headers: { "Content-Type": f.type },
+        headers: { "Content-Type": contentType },
         onUploadProgress: (e) => {
           if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         },
