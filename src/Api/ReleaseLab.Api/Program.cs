@@ -170,9 +170,17 @@ builder.Services.AddSerilog(lc => lc
                 .AllowCredentials());
     });
 
+    // ── Response Compression ──
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+    });
+
     var app = builder.Build();
 
     // ── Middleware Pipeline ──
+    app.UseResponseCompression();
+    app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
 
