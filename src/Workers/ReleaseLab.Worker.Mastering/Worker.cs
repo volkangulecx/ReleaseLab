@@ -232,7 +232,7 @@ public class MasteringWorker : BackgroundService
                   "equalizer=f=200:width_type=o:width=2:g=1.5," +
                   "equalizer=f=3000:width_type=o:width=2:g=-1," +
                   "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250," +
-                  "stereotools=widening=0.2," +
+                  "extrastereo=m=1.4," +
                   "loudnorm=I=-14:TP=-1:LRA=11," +
                   "alimiter=limit=0.95",
 
@@ -240,7 +240,7 @@ public class MasteringWorker : BackgroundService
                     "equalizer=f=4000:width_type=o:width=2:g=2," +
                     "equalizer=f=10000:width_type=o:width=2:g=1.5," +
                     "acompressor=threshold=-18dB:ratio=2:attack=10:release=200," +
-                    "stereotools=widening=0.3," +
+                    "extrastereo=m=1.6," +
                     "loudnorm=I=-14:TP=-1:LRA=9," +
                     "alimiter=limit=0.95",
 
@@ -248,7 +248,7 @@ public class MasteringWorker : BackgroundService
                   "equalizer=f=80:width_type=o:width=2:g=2," +
                   "equalizer=f=8000:width_type=o:width=2:g=1.5," +
                   "acompressor=threshold=-18dB:ratio=3:attack=10:release=200," +
-                  "stereotools=widening=0.15," +
+                  "extrastereo=m=1.3," +
                   "loudnorm=I=-9:TP=-1:LRA=7," +
                   "alimiter=limit=0.95",
 
@@ -256,7 +256,7 @@ public class MasteringWorker : BackgroundService
              "equalizer=f=200:width_type=o:width=2:g=0.5," +
              "equalizer=f=5000:width_type=o:width=2:g=0.5," +
              "acompressor=threshold=-20dB:ratio=2:attack=12:release=200," +
-             "stereotools=widening=0.1," +
+             "extrastereo=m=1.2," +
              "loudnorm=I=-14:TP=-1:LRA=11," +
              "alimiter=limit=0.95"
     };
