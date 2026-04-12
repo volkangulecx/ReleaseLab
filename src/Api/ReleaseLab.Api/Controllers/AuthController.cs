@@ -118,6 +118,26 @@ public class AuthController : ControllerBase
         ));
     }
 
+    [Authorize]
+    [HttpPut("/api/v1/me")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")?.Value ?? throw new UnauthorizedAccessException());
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return NotFound();
+
+        if (request.DisplayName is not null)
+            user.DisplayName = request.DisplayName.Trim();
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        return Ok(new UserProfileResponse(
+            user.Id, user.Email, user.DisplayName,
+            user.Plan.ToString(), user.CreditBalance, user.CreatedAt
+        ));
+    }
+
     // ── Email Verification ──
 
     [HttpPost("send-verification")]
