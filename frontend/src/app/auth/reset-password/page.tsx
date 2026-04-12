@@ -45,9 +45,12 @@ function ResetPasswordForm() {
 
   if (!email || !token) {
     return (
-      <div className="text-center">
+      <div className="glass-strong rounded-3xl p-8 md:p-10 glow-violet-sm text-center">
         <p className="text-zinc-400 mb-4">Invalid or missing reset link.</p>
-        <Link href="/auth/forgot-password" className="text-violet-400 hover:text-violet-300">
+        <Link
+          href="/auth/forgot-password"
+          className="text-violet-400 hover:text-violet-300 text-sm font-medium transition"
+        >
           Request a new one
         </Link>
       </div>
@@ -56,67 +59,86 @@ function ResetPasswordForm() {
 
   if (success) {
     return (
-      <div className="text-center">
-        <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-          <CheckCircle className="w-8 h-8 text-emerald-500" />
+      <div className="glass-strong rounded-3xl p-8 md:p-10 glow-violet-sm text-center">
+        <div className="w-14 h-14 bg-emerald-500/10 rounded-full flex items-center justify-center mx-auto mb-5">
+          <CheckCircle className="w-7 h-7 text-emerald-400" />
         </div>
-        <h2 className="text-xl font-bold mb-2">Password reset!</h2>
-        <p className="text-zinc-400 text-sm">Redirecting to login...</p>
+        <h2 className="text-xl font-bold text-white mb-2">Password reset!</h2>
+        <p className="text-zinc-500 text-sm">Redirecting to login...</p>
       </div>
     );
   }
 
   return (
-    <>
-      <h2 className="text-xl font-bold text-center mb-2">Set new password</h2>
-      <p className="text-zinc-400 text-sm text-center mb-6">
-        for <span className="text-zinc-200">{email}</span>
-      </p>
+    <div className="glass-strong rounded-3xl p-8 md:p-10 glow-violet-sm">
+      <div className="text-center mb-8">
+        <h1 className="text-2xl font-bold text-white">Set new password</h1>
+        <p className="text-zinc-500 text-sm mt-1">
+          for <span className="text-zinc-300">{email}</span>
+        </p>
+      </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm text-zinc-400 mb-1">New Password</label>
+          <label className="block text-sm font-medium text-zinc-400 mb-1.5">
+            New Password
+          </label>
           <input
             type="password"
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-violet-500 transition"
+            className="w-full bg-zinc-900/70 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition text-white placeholder-zinc-600"
             placeholder="Min 6 characters"
           />
         </div>
         <div>
-          <label className="block text-sm text-zinc-400 mb-1">Confirm Password</label>
+          <label className="block text-sm font-medium text-zinc-400 mb-1.5">
+            Confirm Password
+          </label>
           <input
             type="password"
             required
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-violet-500 transition"
+            className="w-full bg-zinc-900/70 border border-zinc-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 transition text-white placeholder-zinc-600"
             placeholder="Same as above"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 disabled:opacity-50 text-white py-3 rounded-xl font-medium transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/25 flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="w-4 h-4 animate-spin" />}
           Reset Password
         </button>
       </form>
-    </>
+    </div>
   );
 }
 
 export default function ResetPasswordPage() {
   return (
-    <div className="flex-1 flex items-center justify-center px-6 py-12">
-      <div className="w-full max-w-sm">
-        <div className="flex justify-center mb-8">
+    <div className="min-h-screen relative flex items-center justify-center px-4 py-12 overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-zinc-950" />
+      <div className="absolute inset-0 bg-grid opacity-30" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-violet-600/8 rounded-full blur-[150px]" />
+
+      <div className="relative z-10 w-full max-w-md animate-fade-in-up">
+        {/* Logo */}
+        <div className="flex justify-center mb-10">
           <Logo variant="page" />
         </div>
-        <Suspense fallback={<Loader2 className="w-6 h-6 animate-spin mx-auto text-violet-500" />}>
+
+        <Suspense
+          fallback={
+            <div className="glass-strong rounded-3xl p-8 md:p-10 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin text-violet-500" />
+            </div>
+          }
+        >
           <ResetPasswordForm />
         </Suspense>
       </div>

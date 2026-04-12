@@ -11,11 +11,6 @@ export default function SettingsPage() {
   const [displayName, setDisplayName] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Password change
-  const [currentPassword, setCurrentPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [changingPassword, setChangingPassword] = useState(false);
-
   useEffect(() => {
     if (user) setDisplayName(user.displayName ?? "");
   }, [user]);
@@ -45,96 +40,110 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h1 className="text-2xl font-bold mb-8">Settings</h1>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background */}
+      <div className="absolute inset-0 bg-zinc-950" />
+      <div className="absolute inset-0 bg-grid opacity-30" />
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-violet-600/8 rounded-full blur-[150px]" />
 
-      {/* Profile Section */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
-        <div className="flex items-center gap-3 mb-6">
-          <User className="w-5 h-5 text-violet-500" />
-          <h2 className="font-semibold">Profile</h2>
+      <div className="relative z-10 max-w-2xl mx-auto px-6 py-10 animate-fade-in-up">
+        <h1 className="text-2xl font-bold text-white mb-8">Settings</h1>
+
+        {/* Profile Section */}
+        <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-6">
+            <User className="w-5 h-5 text-violet-400" />
+            <h2 className="font-semibold text-white">Profile</h2>
+          </div>
+
+          <form onSubmit={handleSaveProfile} className="space-y-5">
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">
+                Display Name
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-2.5 focus:outline-none focus:ring-1 focus:ring-violet-500/30 focus:border-violet-500/30 transition text-white placeholder-zinc-600"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-400 mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                value={user?.email ?? ""}
+                disabled
+                className="w-full bg-zinc-900/50 border border-zinc-800 rounded-lg px-4 py-2.5 text-zinc-500 cursor-not-allowed"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg font-medium transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/25 flex items-center gap-2 text-sm"
+            >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </button>
+          </form>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Display Name</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-violet-500 transition"
-            />
+        {/* Email Verification */}
+        <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-6 mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Mail className="w-5 h-5 text-violet-400" />
+            <h2 className="font-semibold text-white">Email Verification</h2>
           </div>
-          <div>
-            <label className="block text-sm text-zinc-400 mb-1">Email</label>
-            <input
-              type="email"
-              value={user?.email ?? ""}
-              disabled
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-zinc-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium transition flex items-center gap-2"
-          >
-            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-            Save Changes
-          </button>
-        </form>
-      </div>
 
-      {/* Email Verification */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 mb-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Mail className="w-5 h-5 text-violet-500" />
-          <h2 className="font-semibold">Email Verification</h2>
+          <div className="flex items-center gap-3">
+            {user?.email ? (
+              <>
+                <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <p className="text-zinc-500 text-sm flex-1">
+                  Verify your email to unlock all features
+                </p>
+                <button
+                  onClick={handleSendVerification}
+                  className="text-violet-400 hover:text-violet-300 text-sm font-medium transition whitespace-nowrap"
+                >
+                  Send verification email
+                </button>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
+                <p className="text-zinc-500 text-sm">Email verified</p>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          {user?.email ? (
-            // We don't have emailVerified in the current user response, so show verify button
-            <>
-              <AlertCircle className="w-5 h-5 text-amber-400" />
-              <p className="text-zinc-400 text-sm flex-1">Verify your email to unlock all features</p>
-              <button
-                onClick={handleSendVerification}
-                className="text-violet-400 hover:text-violet-300 text-sm font-medium transition"
-              >
-                Send verification email
-              </button>
-            </>
-          ) : (
-            <>
-              <CheckCircle className="w-5 h-5 text-emerald-400" />
-              <p className="text-zinc-400 text-sm">Email verified</p>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Account Info */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Shield className="w-5 h-5 text-violet-500" />
-          <h2 className="font-semibold">Account</h2>
-        </div>
-
-        <div className="space-y-3 text-sm">
-          <div className="flex justify-between">
-            <span className="text-zinc-400">Plan</span>
-            <span className="font-medium">{user?.plan}</span>
+        {/* Account Info */}
+        <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <Shield className="w-5 h-5 text-violet-400" />
+            <h2 className="font-semibold text-white">Account</h2>
           </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-400">Credits</span>
-            <span className="font-medium">{user?.creditBalance}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-zinc-400">Member since</span>
-            <span className="font-medium">
-              {user?.createdAt ? new Date(user.createdAt).toLocaleDateString("tr-TR") : "-"}
-            </span>
+
+          <div className="space-y-3 text-sm">
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Plan</span>
+              <span className="text-white font-medium">{user?.plan}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Credits</span>
+              <span className="text-white font-medium">{user?.creditBalance}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-zinc-500">Member since</span>
+              <span className="text-white font-medium">
+                {user?.createdAt
+                  ? new Date(user.createdAt).toLocaleDateString("tr-TR")
+                  : "-"}
+              </span>
+            </div>
           </div>
         </div>
       </div>

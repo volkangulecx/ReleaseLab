@@ -6,18 +6,6 @@ import toast from "react-hot-toast";
 import { jobsApi } from "@/lib/api";
 import { useAuthStore } from "@/lib/store";
 import { timeAgo } from "@/lib/utils";
-import {
-  Upload,
-  Clock,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  ArrowRight,
-  Download,
-  Music,
-  CalendarDays,
-  Coins,
-} from "lucide-react";
 
 interface Job {
   id: string;
@@ -30,46 +18,22 @@ interface Job {
   finishedAt: string | null;
 }
 
-const statusConfig: Record<
-  string,
-  { icon: React.ReactNode; color: string; dot: string; badge: string }
-> = {
-  Queued: {
-    icon: <Clock className="w-4 h-4" />,
-    color: "text-yellow-400",
-    dot: "bg-yellow-400",
-    badge: "bg-yellow-400/10 text-yellow-400 border-yellow-400/20",
-  },
-  Processing: {
-    icon: <Clock className="w-4 h-4 animate-spin" />,
-    color: "text-blue-400",
-    dot: "bg-blue-400 animate-pulse",
-    badge: "bg-blue-400/10 text-blue-400 border-blue-400/20",
-  },
-  Completed: {
-    icon: <CheckCircle className="w-4 h-4" />,
-    color: "text-emerald-400",
-    dot: "bg-emerald-400",
-    badge: "bg-emerald-400/10 text-emerald-400 border-emerald-400/20",
-  },
-  Failed: {
-    icon: <XCircle className="w-4 h-4" />,
-    color: "text-red-400",
-    dot: "bg-red-400",
-    badge: "bg-red-400/10 text-red-400 border-red-400/20",
-  },
-  Dead: {
-    icon: <AlertTriangle className="w-4 h-4" />,
-    color: "text-red-500",
-    dot: "bg-red-500",
-    badge: "bg-red-500/10 text-red-500 border-red-500/20",
-  },
-  Cancelled: {
-    icon: <XCircle className="w-4 h-4" />,
-    color: "text-zinc-500",
-    dot: "bg-zinc-500",
-    badge: "bg-zinc-500/10 text-zinc-500 border-zinc-500/20",
-  },
+const statusDot: Record<string, string> = {
+  Queued: "bg-yellow-400",
+  Processing: "bg-blue-400 animate-pulse",
+  Completed: "bg-emerald-400",
+  Failed: "bg-red-400",
+  Dead: "bg-red-500",
+  Cancelled: "bg-zinc-500",
+};
+
+const statusText: Record<string, string> = {
+  Queued: "text-yellow-400",
+  Processing: "text-blue-400",
+  Completed: "text-emerald-400",
+  Failed: "text-red-400",
+  Dead: "text-red-500",
+  Cancelled: "text-zinc-500",
 };
 
 export default function DashboardPage() {
@@ -86,7 +50,6 @@ export default function DashboardPage() {
         const newJobs: Job[] = data.data || data;
         const prev = prevJobsRef.current;
 
-        // Notify on newly completed jobs
         for (const nj of newJobs) {
           const old = prev.find((j) => j.id === nj.id);
           if (old && old.status === "Processing" && nj.status === "Completed") {
@@ -101,12 +64,10 @@ export default function DashboardPage() {
       .catch(() => setLoading(false));
   };
 
-  // Initial load
   useEffect(() => {
     fetchJobs();
   }, []);
 
-  // Listen for SignalR events to auto-refresh
   useEffect(() => {
     const onCompleted = () => fetchJobs();
     const onFailed = () => fetchJobs();
@@ -121,7 +82,6 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Auto-refresh when active jobs exist
   const hasActive = jobs.some(
     (j) => j.status === "Queued" || j.status === "Processing"
   );
@@ -132,7 +92,6 @@ export default function DashboardPage() {
     return () => clearInterval(id);
   }, [hasActive]);
 
-  // Stats
   const totalMasters = jobs.length;
   const thisMonth = useMemo(() => {
     const now = new Date();
@@ -144,196 +103,119 @@ export default function DashboardPage() {
   const credits = user?.creditBalance ?? 0;
 
   const stats = [
-    {
-      label: "Total Masters",
-      value: totalMasters,
-      icon: Music,
-      gradient: "from-violet-600/20 to-violet-400/5",
-      iconBg: "bg-violet-500/15",
-      iconColor: "text-violet-400",
-    },
-    {
-      label: "This Month",
-      value: thisMonth,
-      icon: CalendarDays,
-      gradient: "from-blue-600/20 to-blue-400/5",
-      iconBg: "bg-blue-500/15",
-      iconColor: "text-blue-400",
-    },
-    {
-      label: "Credits",
-      value: credits,
-      icon: Coins,
-      gradient: "from-amber-600/20 to-amber-400/5",
-      iconBg: "bg-amber-500/15",
-      iconColor: "text-amber-400",
-    },
+    { label: "Total masters", value: totalMasters },
+    { label: "This month", value: thisMonth },
+    { label: "Credits", value: credits },
   ];
 
   return (
-    <div className="animate-fade-in">
-      {/* Hero welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-violet-950/80 via-violet-900/40 to-zinc-900/60 border border-violet-500/10 p-8 mb-8 animate-fade-in-up">
-        <div className="absolute inset-0 bg-grid opacity-30" />
-        <div className="absolute -top-20 -right-20 w-60 h-60 bg-violet-600/15 rounded-full blur-[80px]" />
-        <div className="relative z-10 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">
-              Welcome back,{" "}
-              <span className="gradient-text">
-                {user?.displayName || user?.email?.split("@")[0]}
-              </span>
-            </h1>
-            <p className="text-zinc-400">
-              Manage your masters and track your mastering progress.
-            </p>
-          </div>
-          <div className="hidden sm:flex items-center gap-3">
-            {jobs.length > 0 && (
-              <a
-                href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/export/jobs/csv`}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-700/50 bg-zinc-800/50 text-sm text-zinc-300 hover:bg-zinc-700/50 hover:text-white transition-all"
-                target="_blank"
-              >
-                <Download className="w-4 h-4" /> Export CSV
-              </a>
-            )}
-            <Link
-              href="/dashboard/upload"
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/25"
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-semibold text-white">Dashboard</h1>
+          {jobs.length > 0 && (
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/export/jobs/csv`}
+              className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
+              target="_blank"
             >
-              <Upload className="w-4 h-4" />
-              New Master
-            </Link>
-          </div>
+              Export CSV
+            </a>
+          )}
         </div>
-      </div>
-
-      {/* Mobile action buttons */}
-      <div className="flex sm:hidden items-center gap-3 mb-6">
-        {jobs.length > 0 && (
-          <a
-            href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/v1/export/jobs/csv`}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-700/50 bg-zinc-800/50 text-sm text-zinc-300 hover:bg-zinc-700/50 transition"
-            target="_blank"
-          >
-            <Download className="w-4 h-4" /> Export CSV
-          </a>
-        )}
         <Link
           href="/dashboard/upload"
-          className="flex-1 flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 text-white font-medium transition-all"
+          className="px-4 py-2 rounded-lg bg-white text-zinc-950 text-[13px] font-medium hover:bg-zinc-200 transition-colors"
         >
-          <Upload className="w-4 h-4" />
           New Master
         </Link>
       </div>
 
-      {/* Stats row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        {stats.map((stat, i) => (
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+        {stats.map((stat) => (
           <div
             key={stat.label}
-            className={`relative overflow-hidden rounded-xl glass p-5 animate-fade-in-up`}
-            style={{ animationDelay: `${(i + 1) * 100}ms` }}
+            className="rounded-xl border border-zinc-800/40 p-5"
           >
-            <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-60`} />
-            <div className="relative z-10 flex items-center gap-4">
-              <div className={`w-11 h-11 rounded-xl ${stat.iconBg} flex items-center justify-center`}>
-                <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-white">{stat.value}</p>
-                <p className="text-sm text-zinc-500">{stat.label}</p>
-              </div>
-            </div>
+            <p className="text-3xl font-semibold text-white tracking-tight">
+              {stat.value}
+            </p>
+            <p className="text-[13px] text-zinc-500 mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Jobs list */}
-      <div className="glass rounded-2xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-zinc-800/50 flex items-center justify-between">
-          <h2 className="font-semibold text-white">Recent Jobs</h2>
-          <span className="text-xs text-zinc-600">{jobs.length} total</span>
+      {/* Jobs */}
+      {loading ? (
+        <div className="py-20 text-center">
+          <div className="w-6 h-6 border-2 border-zinc-700 border-t-white rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-zinc-600 text-sm">Loading...</p>
         </div>
+      ) : jobs.length === 0 ? (
+        <div className="py-20 text-center">
+          <p className="text-zinc-400 font-medium mb-1">No masters yet</p>
+          <p className="text-zinc-600 text-sm mb-6">
+            Upload your first track to get started.
+          </p>
+          <Link
+            href="/dashboard/upload"
+            className="inline-flex px-5 py-2 rounded-lg bg-white text-zinc-950 text-[13px] font-medium hover:bg-zinc-200 transition-colors"
+          >
+            Upload track
+          </Link>
+        </div>
+      ) : (
+        <div>
+          {/* Table header */}
+          <div className="grid grid-cols-[1fr_120px_120px_100px] gap-4 px-4 pb-3">
+            <span className="text-xs uppercase tracking-wider text-zinc-500 font-medium">
+              Track
+            </span>
+            <span className="text-xs uppercase tracking-wider text-zinc-500 font-medium">
+              Preset
+            </span>
+            <span className="text-xs uppercase tracking-wider text-zinc-500 font-medium">
+              Status
+            </span>
+            <span className="text-xs uppercase tracking-wider text-zinc-500 font-medium text-right">
+              Date
+            </span>
+          </div>
 
-        {loading ? (
-          <div className="p-16 text-center">
-            <div className="w-8 h-8 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-zinc-500 text-sm">Loading your masters...</p>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="p-16 text-center animate-fade-in-up">
-            <div className="w-20 h-20 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto mb-5">
-              <Upload className="w-8 h-8 text-violet-400" />
-            </div>
-            <h3 className="text-lg font-semibold text-white mb-2">No masters yet</h3>
-            <p className="text-zinc-500 mb-6 max-w-xs mx-auto">
-              Upload your first track and experience AI-powered mastering in seconds.
-            </p>
-            <Link
-              href="/dashboard/upload"
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 hover:from-violet-500 hover:to-violet-400 text-white font-medium transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/25"
-            >
-              Upload your first track <ArrowRight className="w-4 h-4" />
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-zinc-800/40">
-            {jobs.map((job, i) => {
-              const sc = statusConfig[job.status] || statusConfig.Queued;
+          {/* Rows */}
+          <div>
+            {jobs.map((job) => {
+              const dot = statusDot[job.status] || statusDot.Queued;
+              const textColor = statusText[job.status] || statusText.Queued;
               return (
                 <Link
                   key={job.id}
                   href={`/jobs/${job.id}`}
-                  className="flex items-center px-6 py-4 hover:bg-white/[0.02] transition-all duration-200 hover:scale-[1.005] group animate-fade-in-up"
-                  style={{ animationDelay: `${i * 60}ms` }}
+                  className="grid grid-cols-[1fr_120px_120px_100px] gap-4 items-center px-4 py-3 border-b border-zinc-800/30 hover:bg-white/[0.02] transition-colors group"
                 >
-                  {/* Status dot */}
-                  <div className="mr-4 flex-shrink-0">
-                    <div className={`w-2.5 h-2.5 rounded-full ${sc.dot}`} />
-                  </div>
-
-                  {/* Center info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2.5 mb-0.5">
-                      <span className="font-semibold text-white truncate">{job.preset}</span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-zinc-800 border border-zinc-700/50 text-zinc-400 font-medium uppercase tracking-wide flex-shrink-0">
-                        {job.quality}
-                      </span>
-                    </div>
-                    <p className="text-zinc-500 text-sm">{timeAgo(job.createdAt)}</p>
-                  </div>
-
-                  {/* Right side: progress bar or status badge */}
-                  {job.status === "Processing" ? (
-                    <div className="w-32 mr-4 flex-shrink-0">
-                      <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-violet-500 to-blue-500 rounded-full transition-all duration-500"
-                          style={{ width: `${job.progress}%` }}
-                        />
-                      </div>
-                      <p className="text-[11px] text-zinc-500 mt-1 text-right font-medium">
-                        {job.progress}%
-                      </p>
-                    </div>
-                  ) : (
-                    <span
-                      className={`text-xs font-medium px-2.5 py-1 rounded-lg border ${sc.badge} flex-shrink-0`}
-                    >
+                  <span className="text-[13px] font-medium text-zinc-200 truncate">
+                    {job.preset} — {job.quality}
+                  </span>
+                  <span className="text-[13px] text-zinc-400">
+                    {job.preset}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${dot} shrink-0`} />
+                    <span className={`text-[13px] ${textColor}`}>
                       {job.status}
                     </span>
-                  )}
-
-                  <ArrowRight className="w-4 h-4 text-zinc-700 ml-3 group-hover:text-zinc-400 transition-colors flex-shrink-0" />
+                  </span>
+                  <span className="text-[13px] text-zinc-500 text-right">
+                    {timeAgo(job.createdAt)}
+                  </span>
                 </Link>
               );
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

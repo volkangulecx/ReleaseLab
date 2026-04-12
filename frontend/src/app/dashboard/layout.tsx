@@ -30,8 +30,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center min-h-screen">
-        <div className="w-10 h-10 border-2 border-violet-500 border-t-transparent rounded-full animate-spin" />
+      <div className="flex-1 flex items-center justify-center min-h-screen bg-zinc-950">
+        <div className="w-8 h-8 border-2 border-zinc-700 border-t-white rounded-full animate-spin" />
       </div>
     );
   }
@@ -41,14 +41,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const initials = (user.displayName || user.email).slice(0, 2).toUpperCase();
 
   const sidebarContent = (
-    <>
+    <div className="flex flex-col h-full">
       {/* Logo */}
-      <Link href="/dashboard" className="mb-8 block" onClick={() => setMobileOpen(false)}>
-        <Logo variant="navbar" />
+      <Link href="/dashboard" className="mb-8 block px-3 pt-1" onClick={() => setMobileOpen(false)}>
+        <Logo variant="navbar" className="!drop-shadow-none" />
       </Link>
 
       {/* Nav */}
-      <nav className="space-y-1 flex-1">
+      <nav className="space-y-0.5 flex-1">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           return (
@@ -56,13 +56,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               key={item.href}
               href={item.href}
               onClick={() => setMobileOpen(false)}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors duration-150 ${
                 isActive
-                  ? "bg-violet-500/10 text-violet-400 shadow-sm"
-                  : "text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200"
+                  ? "bg-white/5 text-white"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/[0.03]"
               }`}
             >
-              <item.icon className={`w-[18px] h-[18px] ${isActive ? "text-violet-400" : ""}`} />
+              <item.icon className={`w-4 h-4 ${isActive ? "text-zinc-300" : "text-zinc-600"}`} />
               {item.label}
             </Link>
           );
@@ -70,36 +70,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </nav>
 
       {/* User section */}
-      <div className="border-t border-zinc-800/60 pt-4 mt-4">
-        <div className="flex items-center gap-3 px-2 mb-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-600 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+      <div className="border-t border-zinc-800/40 pt-4 mt-4">
+        <div className="flex items-center gap-3 px-3 mb-3">
+          <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-[11px] font-semibold text-zinc-300 shrink-0">
             {initials}
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium truncate">{user.displayName || user.email.split("@")[0]}</p>
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-zinc-500">{user.plan}</span>
-              <span className="text-[11px] text-violet-400">{user.creditBalance} cr</span>
-            </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-medium text-zinc-300 truncate">
+              {user.email}
+            </p>
+            <span className="text-[11px] text-zinc-600 font-medium uppercase tracking-wider">
+              {user.plan}
+            </span>
           </div>
         </div>
         <button
           onClick={async () => { await logout(); router.push("/auth/login"); }}
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-zinc-500 hover:bg-zinc-800/70 hover:text-zinc-300 transition w-full"
+          className="flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] text-zinc-600 hover:text-zinc-400 hover:bg-white/[0.03] transition-colors w-full"
         >
           <LogOut className="w-4 h-4" />
-          Sign Out
+          Sign out
         </button>
       </div>
-    </>
+    </div>
   );
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex min-h-screen bg-zinc-950">
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-40 md:hidden glass rounded-xl p-2.5 text-zinc-300 hover:text-white transition"
+        className="fixed top-4 left-4 z-40 md:hidden rounded-lg p-2 bg-zinc-900 border border-zinc-800/40 text-zinc-400 hover:text-white transition-colors"
         aria-label="Open menu"
       >
         <Menu className="w-5 h-5" />
@@ -107,24 +108,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" onClick={() => setMobileOpen(false)} />
+        <div
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden transition-opacity duration-200"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
       {/* Mobile sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-zinc-950/95 backdrop-blur-xl border-r border-zinc-800/50 p-5 flex flex-col transform transition-transform duration-300 ease-out md:hidden ${mobileOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-200 transition" aria-label="Close">
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 w-[240px] bg-zinc-950 border-r border-zinc-800/40 p-4 transform transition-transform duration-200 ease-out md:hidden ${
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="absolute top-4 right-4 text-zinc-600 hover:text-zinc-300 transition-colors"
+          aria-label="Close"
+        >
           <X className="w-5 h-5" />
         </button>
         {sidebarContent}
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex w-[260px] border-r border-zinc-800/50 p-5 flex-col bg-zinc-950/50">
+      <aside className="hidden md:flex w-[240px] border-r border-zinc-800/40 p-4 flex-col bg-zinc-950 shrink-0">
         {sidebarContent}
       </aside>
 
       {/* Main */}
-      <main className="flex-1 p-6 pt-16 md:p-8 overflow-x-hidden">{children}</main>
+      <main className="flex-1 p-6 pt-16 md:p-10 overflow-x-hidden bg-zinc-950">
+        {children}
+      </main>
     </div>
   );
 }
