@@ -3,11 +3,11 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import { uploadApi, jobsApi } from "@/lib/api";
 import axios from "axios";
 
-const PRESETS = [
+const STANDARD_PRESETS = [
   {
     id: "Warm",
     label: "Warm",
@@ -30,12 +30,46 @@ const PRESETS = [
   },
 ];
 
+const GENRE_PRESETS = [
+  {
+    id: "hiphop",
+    label: "Hip-Hop",
+    desc: "Heavy low-end, punchy drums, crisp vocals.",
+  },
+  {
+    id: "edm",
+    label: "EDM",
+    desc: "Loud, wide stereo, tight sub-bass, bright leads.",
+  },
+  {
+    id: "jazz",
+    label: "Jazz",
+    desc: "Warm dynamics, natural room, instrument clarity.",
+  },
+  {
+    id: "classical",
+    label: "Classical",
+    desc: "Transparent, wide dynamic range, natural tonality.",
+  },
+  {
+    id: "pop",
+    label: "Pop",
+    desc: "Balanced brightness, polished vocals, radio-ready.",
+  },
+  {
+    id: "rock",
+    label: "Rock",
+    desc: "Gritty mids, punchy drums, full guitar presence.",
+  },
+];
+
 const QUALITIES = [
   { id: "Preview", label: "Preview", sublabel: "Free", desc: "MP3 128kbps" },
   { id: "HiRes", label: "Hi-Res", sublabel: "1 credit", desc: "WAV + MP3 320kbps" },
 ];
 
 type Step = "upload" | "preset" | "processing";
+type PresetTab = "standard" | "genre";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -43,10 +77,16 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [fileId, setFileId] = useState<string | null>(null);
   const [preset, setPreset] = useState("Balanced");
+  const [presetTab, setPresetTab] = useState<PresetTab>("standard");
   const [quality, setQuality] = useState("Preview");
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [creating, setCreating] = useState(false);
+
+  // Reference track state
+  const [refFile, setRefFile] = useState<File | null>(null);
+  const [refFileId, setRefFileId] = useState<string | null>(null);
+  const [refUploading, setRefUploading] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -66,7 +106,6 @@ export default function UploadPage() {
       return;
     }
 
-    // Resolve content type from extension if browser didn't provide one
     const contentType = f.type || (ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "audio/flac");
     if (f.size > 500 * 1024 * 1024) {
       toast.error("File too large (max 500MB)");
@@ -100,6 +139,39 @@ export default function UploadPage() {
     }
   };
 
+  const handleRefFile = async (f: File) => {
+    const allowedExts = [".wav", ".mp3", ".flac"];
+    const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
+    if (!allowedExts.includes(ext)) {
+      toast.error("Unsupported format. Use WAV, MP3, or FLAC.");
+      return;
+    }
+
+    const contentType = f.type || (ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "audio/flac");
+    if (f.size > 500 * 1024 * 1024) {
+      toast.error("File too large (max 500MB)");
+      return;
+    }
+
+    setRefFile(f);
+    setRefUploading(true);
+
+    try {
+      const { data: initData } = await uploadApi.init(f.name, f.size, contentType);
+      await axios.put(initData.uploadUrl, f, {
+        headers: { "Content-Type": contentType },
+      });
+      await uploadApi.complete(initData.fileId);
+      setRefFileId(initData.fileId);
+      toast.success("Reference track uploaded!");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Reference upload failed");
+      setRefFile(null);
+    } finally {
+      setRefUploading(false);
+    }
+  };
+
   const handleCreateJob = async () => {
     if (!fileId) return;
     setCreating(true);
@@ -116,6 +188,8 @@ export default function UploadPage() {
 
   const currentStepIndex = step === "upload" ? 0 : step === "preset" ? 1 : 2;
   const stepLabels = ["Upload", "Preset", "Master"];
+
+  const activePresets = presetTab === "standard" ? STANDARD_PRESETS : GENRE_PRESETS;
 
   return (
     <div className="max-w-xl mx-auto">
@@ -195,10 +269,34 @@ export default function UploadPage() {
             </button>
           </div>
 
-          {/* Preset selection */}
+          {/* Preset tabs */}
           <p className="text-[13px] font-medium text-zinc-400 mb-3">Preset</p>
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            {PRESETS.map((p) => {
+          <div className="flex items-center gap-1 mb-4 bg-zinc-900/50 border border-zinc-800/40 rounded-lg p-1 w-fit">
+            <button
+              onClick={() => setPresetTab("standard")}
+              className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                presetTab === "standard"
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              Standard
+            </button>
+            <button
+              onClick={() => setPresetTab("genre")}
+              className={`px-3 py-1.5 rounded-md text-[12px] font-medium transition-colors ${
+                presetTab === "genre"
+                  ? "bg-white/10 text-white"
+                  : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              Genre
+            </button>
+          </div>
+
+          {/* Preset cards */}
+          <div className={`grid gap-3 mb-8 ${presetTab === "genre" ? "grid-cols-3" : "grid-cols-2"}`}>
+            {activePresets.map((p) => {
               const isSelected = preset === p.id;
               return (
                 <button
@@ -221,7 +319,7 @@ export default function UploadPage() {
 
           {/* Quality */}
           <p className="text-[13px] font-medium text-zinc-400 mb-3">Quality</p>
-          <div className="space-y-2 mb-10">
+          <div className="space-y-2 mb-8">
             {QUALITIES.map((q) => {
               const isSelected = quality === q.id;
               return (
@@ -253,6 +351,59 @@ export default function UploadPage() {
               );
             })}
           </div>
+
+          {/* Reference Track */}
+          <p className="text-[13px] font-medium text-zinc-400 mb-2">Reference Track</p>
+          <p className="text-[12px] text-zinc-600 mb-3">
+            Optional: upload a reference track for AI-powered tonal matching
+          </p>
+          {refFile ? (
+            <div className="flex items-center gap-3 mb-10 bg-zinc-900/50 border border-zinc-800/40 rounded-lg px-4 py-3">
+              <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="text-[13px] text-zinc-300 truncate flex-1">
+                {refFile.name}
+              </span>
+              <button
+                onClick={() => {
+                  setRefFile(null);
+                  setRefFileId(null);
+                }}
+                className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <div
+              onClick={() =>
+                !refUploading &&
+                document.getElementById("ref-file-input")?.click()
+              }
+              className="rounded-lg border border-dashed border-zinc-800 hover:border-zinc-700 p-6 text-center cursor-pointer transition-colors mb-10"
+            >
+              <input
+                id="ref-file-input"
+                type="file"
+                accept=".wav,.mp3,.flac"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleRefFile(f);
+                  if (e.target) e.target.value = "";
+                }}
+              />
+              {refUploading ? (
+                <div className="flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+                  <span className="text-[12px] text-zinc-500">Uploading...</span>
+                </div>
+              ) : (
+                <p className="text-[12px] text-zinc-600">
+                  Drop or click to upload reference
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Start button */}
           <button
