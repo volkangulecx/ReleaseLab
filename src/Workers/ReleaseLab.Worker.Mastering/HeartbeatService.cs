@@ -6,7 +6,7 @@ public class HeartbeatService : BackgroundService
 {
     private readonly IConnectionMultiplexer _redis;
     private readonly ILogger<HeartbeatService> _logger;
-    private readonly string _workerId = $"worker:{Environment.MachineName}:{Guid.NewGuid():N[..8]}";
+    private readonly string _workerId = $"worker:{Environment.MachineName}:{Guid.NewGuid().ToString("N").Substring(0, 8)}";
 
     public HeartbeatService(IConnectionMultiplexer redis, ILogger<HeartbeatService> logger)
     {
