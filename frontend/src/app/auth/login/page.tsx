@@ -39,8 +39,8 @@ export default function LoginPage() {
         <div className="absolute top-1/4 left-1/3 w-80 h-80 bg-violet-600/20 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-fuchsia-600/10 rounded-full blur-[100px]" />
 
-        <div className="relative z-10 max-w-lg animate-fade-in">
-          <div className="mb-8">
+        <div className="relative z-10 max-w-lg animate-fade-in mt-16">
+          <div className="mb-12">
             <Logo variant="page" />
           </div>
 

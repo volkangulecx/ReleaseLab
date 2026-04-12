@@ -7,9 +7,9 @@ interface LogoProps {
 
 export default function Logo({ variant = "navbar", className = "" }: LogoProps) {
   const config = {
-    navbar:  { width: 180, height: 56 },
-    page:    { width: 300, height: 94 },
-    compact: { width: 120, height: 38 },
+    navbar:  { width: 140, height: 44 },   // sidebar & navbar — fits 260px sidebar
+    page:    { width: 400, height: 125 },  // auth pages — large & prominent
+    compact: { width: 120, height: 38 },   // footer
   }[variant];
 
   return (

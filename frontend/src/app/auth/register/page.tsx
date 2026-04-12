@@ -51,8 +51,8 @@ export default function RegisterPage() {
         <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-violet-600/20 rounded-full blur-[120px]" />
         <div className="absolute bottom-1/3 right-1/3 w-56 h-56 bg-fuchsia-600/10 rounded-full blur-[100px]" />
 
-        <div className="relative z-10 max-w-lg animate-fade-in">
-          <div className="mb-8">
+        <div className="relative z-10 max-w-lg animate-fade-in mt-16">
+          <div className="mb-12">
             <Logo variant="page" />
           </div>
 
