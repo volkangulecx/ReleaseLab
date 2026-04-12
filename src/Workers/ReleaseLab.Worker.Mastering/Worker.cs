@@ -337,11 +337,30 @@ public class MasteringWorker : BackgroundService
         };
 
         process.Start();
-        await process.WaitForExitAsync(ct);
+
+        // Read stderr asynchronously to prevent deadlock (FFmpeg writes a lot to stderr)
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+
+        // Timeout: 10 minutes max per FFmpeg call
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromMinutes(10));
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // Timeout — kill FFmpeg
+            try { process.Kill(true); } catch { }
+            throw new TimeoutException($"FFmpeg timed out after 10 minutes for {output}");
+        }
+
+        var error = await stderrTask;
 
         if (process.ExitCode != 0)
         {
-            var error = await process.StandardError.ReadToEndAsync(ct);
             throw new InvalidOperationException($"FFmpeg failed (exit {process.ExitCode}): {error}");
         }
     }
