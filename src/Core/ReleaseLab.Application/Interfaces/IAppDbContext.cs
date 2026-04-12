@@ -16,6 +16,7 @@ public interface IAppDbContext
     DbSet<AuditLog> AuditLogs { get; }
     DbSet<MixProject> MixProjects { get; }
     DbSet<MixTrack> MixTracks { get; }
+    DbSet<Release> Releases { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

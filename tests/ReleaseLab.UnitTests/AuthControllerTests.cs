@@ -251,5 +251,6 @@ public class AuthControllerTests : IDisposable
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<MixProject> MixProjects => Set<MixProject>();
         public DbSet<MixTrack> MixTracks => Set<MixTrack>();
+        public DbSet<Release> Releases => Set<Release>();
     }
 }
