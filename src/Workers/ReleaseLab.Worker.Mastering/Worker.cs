@@ -119,16 +119,31 @@ public class MasteringWorker : BackgroundService
             var outputMasterMp3 = Path.Combine(tempDir, "master.mp3");
             var outputPreviewMp3 = Path.Combine(tempDir, "preview.mp3");
 
-            // Download file from S3 using MinIO client directly
+            // Download file from S3 using MinIO client
             var minio = scope.ServiceProvider.GetRequiredService<Minio.IMinioClient>();
-            await minio.GetObjectAsync(new Minio.DataModel.Args.GetObjectArgs()
-                .WithBucket("releaselab-raw")
-                .WithObject(message.InputS3Key)
-                .WithCallbackStream(async (stream, ct2) =>
-                {
-                    using var fs = File.Create(inputPath);
-                    await stream.CopyToAsync(fs, ct2);
-                }), ct);
+            _logger.LogInformation("Downloading {S3Key} from S3...", message.InputS3Key);
+
+            using var downloadCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            downloadCts.CancelAfter(TimeSpan.FromMinutes(5)); // 5 min timeout for download
+
+            try
+            {
+                await minio.GetObjectAsync(new Minio.DataModel.Args.GetObjectArgs()
+                    .WithBucket("releaselab-raw")
+                    .WithObject(message.InputS3Key)
+                    .WithFile(inputPath), downloadCts.Token);
+            }
+            catch (Exception dlEx)
+            {
+                _logger.LogError(dlEx, "Failed to download {S3Key} from S3", message.InputS3Key);
+                throw new InvalidOperationException($"S3 download failed: {dlEx.Message}", dlEx);
+            }
+
+            var fileSize = new FileInfo(inputPath).Length;
+            _logger.LogInformation("Downloaded {S3Key}: {Size} bytes", message.InputS3Key, fileSize);
+
+            if (fileSize == 0)
+                throw new InvalidOperationException("Downloaded file is empty — upload may have failed");
 
             await queueService.PublishProgressAsync(new JobProgressMessage
             {
