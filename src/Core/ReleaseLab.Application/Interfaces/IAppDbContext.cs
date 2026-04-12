@@ -14,6 +14,8 @@ public interface IAppDbContext
     DbSet<VerificationCode> VerificationCodes { get; }
     DbSet<Subscription> Subscriptions { get; }
     DbSet<AuditLog> AuditLogs { get; }
+    DbSet<MixProject> MixProjects { get; }
+    DbSet<MixTrack> MixTracks { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

@@ -249,5 +249,7 @@ public class AuthControllerTests : IDisposable
         public DbSet<VerificationCode> VerificationCodes => Set<VerificationCode>();
         public DbSet<Subscription> Subscriptions => Set<Subscription>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<MixProject> MixProjects => Set<MixProject>();
+        public DbSet<MixTrack> MixTracks => Set<MixTrack>();
     }
 }
