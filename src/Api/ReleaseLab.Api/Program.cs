@@ -20,22 +20,13 @@ using ReleaseLab.Infrastructure.Storage.Services;
 using Serilog;
 using StackExchange.Redis;
 
-// ── Serilog bootstrap ──
-Log.Logger = new LoggerConfiguration()
+var builder = WebApplication.CreateBuilder(args);
+
+// Serilog
+builder.Services.AddSerilog(lc => lc
     .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
     .Enrich.FromLogContext()
-    .CreateBootstrapLogger();
-
-try
-{
-    var builder = WebApplication.CreateBuilder(args);
-
-    // Serilog
-    builder.Host.UseSerilog((ctx, lc) => lc
-        .ReadFrom.Configuration(ctx.Configuration)
-        .WriteTo.Console(outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}")
-        .Enrich.FromLogContext()
-        .Enrich.WithProperty("Application", "ReleaseLab.Api"));
+    .Enrich.WithProperty("Application", "ReleaseLab.Api"));
 
     // ── Database ──
     builder.Services.AddDbContext<AppDbContext>(options =>
@@ -44,8 +35,8 @@ try
 
     // ── Redis ──
     var redisConnection = builder.Configuration["Redis:Connection"] ?? "localhost:6379";
-    builder.Services.AddSingleton<IConnectionMultiplexer>(
-        ConnectionMultiplexer.Connect(redisConnection));
+    builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+        ConnectionMultiplexer.Connect($"{redisConnection},abortConnect=false"));
 
     // ── MinIO / S3 ──
     builder.Services.AddSingleton<IMinioClient>(sp =>
@@ -63,7 +54,11 @@ try
     builder.Services.AddScoped<IPaymentService, StripePaymentService>();
     builder.Services.AddScoped<ISubscriptionService, ReleaseLab.Infrastructure.Payments.Services.StripeSubscriptionService>();
     builder.Services.AddSingleton<IJwtService, JwtService>();
-    builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
+    // Email: SMTP in production, console logger in development
+    if (builder.Environment.IsProduction() && !string.IsNullOrEmpty(builder.Configuration["Smtp:Host"]))
+        builder.Services.AddScoped<IEmailService, ReleaseLab.Infrastructure.Email.Services.SmtpEmailService>();
+    else
+        builder.Services.AddScoped<IEmailService, ConsoleEmailService>();
     builder.Services.AddSingleton<IAudioAnalysisService, FFmpegAnalysisService>();
 
     // ── Auth ──
@@ -156,7 +151,7 @@ try
     });
 
     // ── Observability ──
-    builder.Services.AddObservability();
+    builder.Services.AddObservability(builder.Configuration);
 
     // ── CORS ──
     builder.Services.AddCors(options =>
@@ -208,14 +203,6 @@ try
         status = "running"
     }));
 
-    Log.Information("ReleaseLab API starting...");
-    app.Run();
-}
-catch (Exception ex)
-{
-    Log.Fatal(ex, "Application terminated unexpectedly");
-}
-finally
-{
-    Log.CloseAndFlush();
-}
+app.Run();
+
+public partial class Program { }

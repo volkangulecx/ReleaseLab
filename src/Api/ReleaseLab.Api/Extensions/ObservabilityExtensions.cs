@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 
 namespace ReleaseLab.Api.Extensions;
@@ -22,13 +23,23 @@ public static class ObservabilityExtensions
     // Histograms
     public static readonly Histogram<double> JobDuration = Meter.CreateHistogram<double>("releaselab_job_duration_seconds", "s", "Job processing duration");
 
-    public static IServiceCollection AddObservability(this IServiceCollection services)
+    public static IServiceCollection AddObservability(this IServiceCollection services, IConfiguration config)
     {
+        var otlpEndpoint = config["OpenTelemetry:OtlpEndpoint"];
+
         services.AddOpenTelemetry()
-            .WithTracing(tracing => tracing
-                .AddSource(ActivitySource.Name)
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation())
+            .ConfigureResource(resource => resource
+                .AddService("ReleaseLab.Api", serviceVersion: "1.0.0"))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddSource(ActivitySource.Name)
+                    .AddAspNetCoreInstrumentation()
+                    .AddHttpClientInstrumentation();
+
+                if (!string.IsNullOrEmpty(otlpEndpoint))
+                    tracing.AddOtlpExporter(o => o.Endpoint = new Uri(otlpEndpoint));
+            })
             .WithMetrics(metrics => metrics
                 .AddMeter(Meter.Name)
                 .AddAspNetCoreInstrumentation()
