@@ -89,6 +89,9 @@ builder.Services.AddSerilog(lc => lc
     builder.Services.AddSignalR();
     builder.Services.AddSingleton<INotificationService, ReleaseLab.Api.Services.SignalRNotificationService>();
 
+    // ── Scoped Services ──
+    builder.Services.AddScoped<ReleaseLab.Api.Services.MixdownService>();
+
     // ── Background Services ──
     builder.Services.AddHostedService<ReleaseLab.Api.Services.CleanupService>();
     builder.Services.AddHostedService<ReleaseLab.Api.Services.RedisSignalRBridge>();

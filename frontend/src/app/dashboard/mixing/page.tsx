@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
-import { ArrowLeft, Plus, Trash2, Upload, Loader2 } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Upload, Loader2, Wand2, Download } from "lucide-react";
 import { mixApi, uploadApi } from "@/lib/api";
 import axios from "axios";
 
-/* ── Types ─────────────────────────────────────── */
+/* -- Types ---------------------------------------- */
 
 interface MixFile {
   id: string;
@@ -34,7 +34,7 @@ interface Project {
   tracks?: Track[];
 }
 
-/* ── Track Row ─────────────────────────────────── */
+/* -- Track Row ------------------------------------ */
 
 function TrackRow({
   track,
@@ -142,7 +142,7 @@ function TrackRow({
   );
 }
 
-/* ── Main Page ─────────────────────────────────── */
+/* -- Main Page ------------------------------------ */
 
 export default function MixingPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -153,8 +153,10 @@ export default function MixingPage() {
   const [creatingProject, setCreatingProject] = useState(false);
   const [showNewInput, setShowNewInput] = useState(false);
   const [uploadingTrack, setUploadingTrack] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [autoMixing, setAutoMixing] = useState(false);
 
-  /* ── Fetch projects ── */
+  /* -- Fetch projects -- */
   const fetchProjects = useCallback(async () => {
     try {
       const { data } = await mixApi.listProjects();
@@ -170,7 +172,7 @@ export default function MixingPage() {
     fetchProjects();
   }, [fetchProjects]);
 
-  /* ── Select project ── */
+  /* -- Select project -- */
   const openProject = async (id: string) => {
     setLoadingProject(true);
     try {
@@ -183,7 +185,7 @@ export default function MixingPage() {
     }
   };
 
-  /* ── Create project ── */
+  /* -- Create project -- */
   const handleCreateProject = async () => {
     const trimmed = newProjectName.trim();
     if (!trimmed) return;
@@ -201,7 +203,7 @@ export default function MixingPage() {
     }
   };
 
-  /* ── Add track (upload file) ── */
+  /* -- Add track (upload file) -- */
   const handleAddTrack = async (file: File) => {
     if (!selectedProject) return;
     setUploadingTrack(true);
@@ -240,7 +242,7 @@ export default function MixingPage() {
     }
   };
 
-  /* ── Update track ── */
+  /* -- Update track -- */
   const handleUpdateTrack = async (
     trackId: string,
     data: Partial<Track>
@@ -262,7 +264,7 @@ export default function MixingPage() {
     }
   };
 
-  /* ── Delete track ── */
+  /* -- Delete track -- */
   const handleDeleteTrack = async (trackId: string) => {
     if (!selectedProject) return;
     try {
@@ -280,7 +282,56 @@ export default function MixingPage() {
     }
   };
 
-  /* ── Mixer View ── */
+  /* -- Export Mixdown -- */
+  const handleExport = async () => {
+    if (!selectedProject) return;
+    setExporting(true);
+    try {
+      const { data } = await mixApi.exportMixdown(selectedProject.id);
+      window.open(data.downloadUrl, "_blank");
+      toast.success("Mixdown exported");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  /* -- Auto Mix -- */
+  const handleAutoMix = async () => {
+    if (!selectedProject) return;
+    setAutoMixing(true);
+    try {
+      const { data } = await mixApi.autoMix(selectedProject.id);
+      // Update all track volumes/pans from response
+      if (data.tracks && Array.isArray(data.tracks)) {
+        setSelectedProject((prev) => {
+          if (!prev || !prev.tracks) return prev;
+          return {
+            ...prev,
+            tracks: prev.tracks.map((t) => {
+              const updated = data.tracks.find((u: any) => u.id === t.id);
+              if (updated) {
+                return {
+                  ...t,
+                  volume: updated.volume ?? t.volume,
+                  pan: updated.pan ?? t.pan,
+                };
+              }
+              return t;
+            }),
+          };
+        });
+      }
+      toast.success("Auto-mix applied \u2014 volumes balanced, tracks panned");
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Auto-mix failed");
+    } finally {
+      setAutoMixing(false);
+    }
+  };
+
+  /* -- Mixer View -- */
   if (selectedProject) {
     return (
       <div className="max-w-4xl mx-auto">
@@ -358,20 +409,41 @@ export default function MixingPage() {
           </div>
         )}
 
-        {/* Export button */}
-        <div className="mt-8">
+        {/* Action buttons */}
+        <div className="mt-8 flex gap-3">
           <button
-            onClick={() => toast("Coming soon", { icon: "🔜" })}
-            className="w-full py-3.5 rounded-xl font-medium text-[14px] bg-zinc-800/60 border border-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors"
+            onClick={handleAutoMix}
+            disabled={autoMixing || !selectedProject.tracks?.length}
+            className="flex-1 py-3.5 rounded-xl font-medium text-[14px] bg-zinc-900/50 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Export Mixdown
+            {autoMixing ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Wand2 className="w-4 h-4" />
+            )}
+            {autoMixing ? "Mixing..." : "Auto Mix"}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting || !selectedProject.tracks?.length}
+            className="flex-1 py-3.5 rounded-xl font-medium text-[14px] text-zinc-950 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            style={{
+              background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
+            }}
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            {exporting ? "Exporting..." : "Export Mixdown"}
           </button>
         </div>
       </div>
     );
   }
 
-  /* ── Project List View ── */
+  /* -- Project List View -- */
   return (
     <div className="max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-8">

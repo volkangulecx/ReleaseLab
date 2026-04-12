@@ -150,6 +150,45 @@ public class MixingController : ControllerBase
 
         return NoContent();
     }
+
+    [HttpPost("projects/{id:guid}/export")]
+    public async Task<IActionResult> ExportMixdown(Guid id, [FromServices] Services.MixdownService mixdown)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        try
+        {
+            var outputKey = await mixdown.ExportMixdownAsync(id, userId);
+            var storage = HttpContext.RequestServices.GetRequiredService<IStorageService>();
+            var downloadUrl = await storage.GeneratePresignedDownloadUrlAsync("releaselab-processed", outputKey);
+            return Ok(new { outputKey, downloadUrl });
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("projects/{id:guid}/auto-mix")]
+    public async Task<IActionResult> AutoMix(Guid id, [FromServices] Services.MixdownService mixdown)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        try
+        {
+            await mixdown.AutoMixAsync(id, userId);
+            // Return updated project with new track settings
+            var project = await _db.MixProjects
+                .Include(p => p.Tracks)
+                .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+            return Ok(new
+            {
+                message = "Auto-mix applied",
+                tracks = project!.Tracks.OrderBy(t => t.OrderIndex).Select(t => new
+                {
+                    t.Id, t.Name, t.Volume, t.Pan, t.Muted, t.Solo
+                })
+            });
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+    }
 }
 
 public record CreateMixProjectRequest(string? Name);

@@ -105,6 +105,10 @@ export const mixApi = {
     api.put(`/api/v1/mix/projects/${projectId}/tracks/${trackId}`, data),
   deleteTrack: (projectId: string, trackId: string) =>
     api.delete(`/api/v1/mix/projects/${projectId}/tracks/${trackId}`),
+  exportMixdown: (projectId: string) =>
+    api.post(`/api/v1/mix/projects/${projectId}/export`),
+  autoMix: (projectId: string) =>
+    api.post(`/api/v1/mix/projects/${projectId}/auto-mix`),
 };
 
 // Admin
