@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Minio;
+using ReleaseLab.Api.Extensions;
 using ReleaseLab.Api.Middleware;
 using ReleaseLab.Api.Services;
 using ReleaseLab.Infrastructure.Audio.Services;
@@ -154,6 +155,9 @@ try
         });
     });
 
+    // ── Observability ──
+    builder.Services.AddObservability();
+
     // ── CORS ──
     builder.Services.AddCors(options =>
     {
@@ -194,8 +198,9 @@ try
 
     app.MapControllers();
 
-    // Health checks
+    // Observability
     app.MapHealthChecks("/health");
+    app.MapPrometheusScrapingEndpoint("/metrics");
     app.MapGet("/", () => Results.Ok(new
     {
         name = "ReleaseLab API",

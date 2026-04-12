@@ -95,6 +95,9 @@ public class MasteringWorker : BackgroundService
             return;
         }
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        WorkerMetrics.ActiveJobs.Add(1);
+
         try
         {
             job.Status = JobStatus.Processing;
@@ -185,14 +188,19 @@ public class MasteringWorker : BackgroundService
                 JobId = job.Id, Progress = 100, Stage = "completed"
             });
 
-            _logger.LogInformation("Job {JobId} completed successfully (HiRes={IsHiRes})", job.Id, isHiRes);
+            sw.Stop();
+            WorkerMetrics.JobsProcessed.Add(1, new KeyValuePair<string, object?>("preset", message.Preset));
+            WorkerMetrics.ProcessingDuration.Record(sw.Elapsed.TotalSeconds, new KeyValuePair<string, object?>("preset", message.Preset));
+            _logger.LogInformation("Job {JobId} completed successfully (HiRes={IsHiRes}) in {Duration}s", job.Id, isHiRes, sw.Elapsed.TotalSeconds);
 
             // Cleanup temp files
             try { Directory.Delete(tempDir, true); } catch { }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Job {JobId} failed", job.Id);
+            sw.Stop();
+            WorkerMetrics.JobsFailed.Add(1);
+            _logger.LogError(ex, "Job {JobId} failed after {Duration}s", job.Id, sw.Elapsed.TotalSeconds);
 
             job.Status = message.AttemptCount >= 3 ? JobStatus.Dead : JobStatus.Failed;
             job.ErrorCode = "PROCESSING_ERROR";
@@ -209,6 +217,10 @@ public class MasteringWorker : BackgroundService
                     EnqueuedAt = DateTime.UtcNow
                 });
             }
+        }
+        finally
+        {
+            WorkerMetrics.ActiveJobs.Add(-1);
         }
     }
 
