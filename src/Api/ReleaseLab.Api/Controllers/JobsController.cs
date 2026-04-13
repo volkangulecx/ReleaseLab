@@ -49,7 +49,9 @@ public class JobsController : ControllerBase
         if (file is null || file.UserId != userId)
             return NotFound(new { message = "File not found" });
 
-        if (!Enum.TryParse<MasteringPreset>(request.Preset, true, out var preset))
+        var validGenres = new[] { "hiphop", "edm", "jazz", "classical", "pop", "rock" };
+        var isGenre = validGenres.Contains(request.Preset.ToLowerInvariant());
+        if (!Enum.TryParse<MasteringPreset>(request.Preset, true, out var preset) && !isGenre)
             return BadRequest(new { message = "Invalid preset" });
 
         if (!Enum.TryParse<AudioQuality>(request.Quality, true, out var quality))
@@ -98,15 +100,23 @@ public class JobsController : ControllerBase
         await subscriptions.IncrementUsageAsync(userId);
 
         // Enqueue to Redis with plan-based priority
+        // Resolve preset — could be enum name OR genre string
+        var presetStr = Enum.IsDefined(typeof(MasteringPreset), preset) ? preset.ToString() : request.Preset;
+
         await _queue.EnqueueMasteringJobAsync(new MasteringJobMessage
         {
             JobId = job.Id,
             UserId = userId,
             InputS3Key = file.S3Key,
             OutputBucket = ProcessedBucket,
-            Preset = preset.ToString(),
+            Preset = presetStr,
             Quality = quality.ToString(),
             UserPlan = user.Plan.ToString(),
+            LoudnessTarget = request.LoudnessTarget,
+            CustomLufs = request.CustomLufs,
+            LowEq = request.LowEq,
+            MidEq = request.MidEq,
+            HighEq = request.HighEq,
             AttemptCount = 0,
             EnqueuedAt = DateTime.UtcNow
         }, user.Plan);

@@ -1,6 +1,17 @@
 namespace ReleaseLab.Application.Jobs.DTOs;
 
-public record CreateJobRequest(Guid FileId, string Preset, string Quality);
+public record CreateJobRequest(
+    Guid FileId,
+    string Preset,
+    string Quality,
+    string? LoudnessTarget = null,     // spotify | apple | youtube | club | custom
+    double? CustomLufs = null,          // -6 to -20
+    double? LowEq = null,              // -12 to +12
+    double? MidEq = null,
+    double? HighEq = null,
+    Guid? ReferenceFileId = null        // optional reference track
+);
+
 public record JobResponse(
     Guid Id,
     string Status,

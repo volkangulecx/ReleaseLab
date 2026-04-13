@@ -151,7 +151,7 @@ public class MasteringWorker : BackgroundService
             });
 
             // Build FFmpeg filter chain based on preset
-            var filterChain = BuildFilterChain(message.Preset);
+            var filterChain = BuildFilterChain(message);
             var isHiRes = string.Equals(message.Quality, "HiRes", StringComparison.OrdinalIgnoreCase);
 
             // Process master WAV (44100Hz, full quality)
@@ -241,40 +241,53 @@ public class MasteringWorker : BackgroundService
         }
     }
 
-    private static string BuildFilterChain(string preset) => preset.ToLowerInvariant() switch
+    private static string BuildFilterChain(MasteringJobMessage msg)
     {
-        "warm" => "highpass=f=30," +
-                  "equalizer=f=200:width_type=o:width=2:g=1.5," +
-                  "equalizer=f=3000:width_type=o:width=2:g=-1," +
-                  "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250," +
-                  "extrastereo=m=1.4," +
-                  "loudnorm=I=-14:TP=-1:LRA=11," +
-                  "alimiter=limit=0.95",
+        var preset = msg.Preset.ToLowerInvariant();
 
-        "bright" => "highpass=f=30," +
-                    "equalizer=f=4000:width_type=o:width=2:g=2," +
-                    "equalizer=f=10000:width_type=o:width=2:g=1.5," +
-                    "acompressor=threshold=-18dB:ratio=2:attack=10:release=200," +
-                    "extrastereo=m=1.6," +
-                    "loudnorm=I=-14:TP=-1:LRA=9," +
-                    "alimiter=limit=0.95",
+        // Get base preset parameters
+        var (eq, comp, stereo, lufs, lra) = preset switch
+        {
+            // Standard presets
+            "warm"     => ("equalizer=f=200:width_type=o:width=2:g=1.5,equalizer=f=3000:width_type=o:width=2:g=-1", "acompressor=threshold=-20dB:ratio=2.5:attack=15:release=250", 1.4, -14, 11),
+            "bright"   => ("equalizer=f=4000:width_type=o:width=2:g=2,equalizer=f=10000:width_type=o:width=2:g=1.5", "acompressor=threshold=-18dB:ratio=2:attack=10:release=200", 1.6, -14, 9),
+            "loud"     => ("equalizer=f=80:width_type=o:width=2:g=2,equalizer=f=8000:width_type=o:width=2:g=1.5", "acompressor=threshold=-18dB:ratio=3:attack=10:release=200", 1.3, -9, 7),
 
-        "loud" => "highpass=f=30," +
-                  "equalizer=f=80:width_type=o:width=2:g=2," +
-                  "equalizer=f=8000:width_type=o:width=2:g=1.5," +
-                  "acompressor=threshold=-18dB:ratio=3:attack=10:release=200," +
-                  "extrastereo=m=1.3," +
-                  "loudnorm=I=-9:TP=-1:LRA=7," +
-                  "alimiter=limit=0.95",
+            // Genre presets
+            "hiphop"   => ("equalizer=f=60:width_type=o:width=1.5:g=3,equalizer=f=100:width_type=o:width=2:g=2,equalizer=f=3000:width_type=o:width=2:g=1.5,equalizer=f=8000:width_type=o:width=2:g=1", "acompressor=threshold=-15dB:ratio=4:attack=5:release=150", 1.2, -9, 7),
+            "edm"      => ("equalizer=f=50:width_type=o:width=1:g=3,equalizer=f=200:width_type=o:width=2:g=-1,equalizer=f=5000:width_type=o:width=2:g=2,equalizer=f=12000:width_type=o:width=2:g=1.5", "acompressor=threshold=-12dB:ratio=3.5:attack=3:release=100", 1.8, -8, 6),
+            "jazz"     => ("equalizer=f=200:width_type=o:width=2:g=1,equalizer=f=800:width_type=o:width=2:g=0.5,equalizer=f=3000:width_type=o:width=2:g=-0.5", "acompressor=threshold=-24dB:ratio=1.5:attack=30:release=400", 1.3, -16, 14),
+            "classical"=> ("equalizer=f=250:width_type=o:width=2:g=0.3,equalizer=f=4000:width_type=o:width=2:g=0.5", "acompressor=threshold=-28dB:ratio=1.2:attack=50:release=500", 1.1, -18, 16),
+            "pop"      => ("equalizer=f=150:width_type=o:width=2:g=1,equalizer=f=2500:width_type=o:width=2:g=2,equalizer=f=6000:width_type=o:width=2:g=1.5,equalizer=f=10000:width_type=o:width=2:g=1", "acompressor=threshold=-16dB:ratio=3:attack=8:release=180", 1.4, -11, 8),
+            "rock"     => ("equalizer=f=80:width_type=o:width=2:g=2,equalizer=f=500:width_type=o:width=2:g=1,equalizer=f=2000:width_type=o:width=2:g=1.5,equalizer=f=8000:width_type=o:width=2:g=1", "acompressor=threshold=-14dB:ratio=3.5:attack=5:release=150", 1.3, -10, 7),
 
-        _ => "highpass=f=30," + // balanced (default)
-             "equalizer=f=200:width_type=o:width=2:g=0.5," +
-             "equalizer=f=5000:width_type=o:width=2:g=0.5," +
-             "acompressor=threshold=-20dB:ratio=2:attack=12:release=200," +
-             "extrastereo=m=1.2," +
-             "loudnorm=I=-14:TP=-1:LRA=11," +
-             "alimiter=limit=0.95"
-    };
+            // Default: balanced
+            _ => ("equalizer=f=200:width_type=o:width=2:g=0.5,equalizer=f=5000:width_type=o:width=2:g=0.5", "acompressor=threshold=-20dB:ratio=2:attack=12:release=200", 1.2, -14, 11),
+        };
+
+        // Override LUFS target based on platform
+        var targetLufs = msg.LoudnessTarget?.ToLowerInvariant() switch
+        {
+            "spotify" => -14,
+            "apple" => -16,
+            "youtube" => -13,
+            "club" => -8,
+            "custom" => (int)(msg.CustomLufs ?? -14),
+            _ => lufs
+        };
+
+        // Apply custom EQ overrides if provided (use InvariantCulture to avoid Turkish comma)
+        var ic = System.Globalization.CultureInfo.InvariantCulture;
+        var customEq = "";
+        if (msg.LowEq.HasValue && Math.Abs(msg.LowEq.Value) > 0.1)
+            customEq += $",equalizer=f=200:width_type=o:width=2:g={msg.LowEq.Value.ToString("F1", ic)}";
+        if (msg.MidEq.HasValue && Math.Abs(msg.MidEq.Value) > 0.1)
+            customEq += $",equalizer=f=2000:width_type=o:width=2:g={msg.MidEq.Value.ToString("F1", ic)}";
+        if (msg.HighEq.HasValue && Math.Abs(msg.HighEq.Value) > 0.1)
+            customEq += $",equalizer=f=10000:width_type=o:width=2:g={msg.HighEq.Value.ToString("F1", ic)}";
+
+        return $"highpass=f=30,{eq}{customEq},{comp},extrastereo=m={stereo.ToString("F1", ic)},loudnorm=I={targetLufs}:TP=-1:LRA={lra},alimiter=limit=0.95";
+    }
 
     private enum OutputFormat
     {
