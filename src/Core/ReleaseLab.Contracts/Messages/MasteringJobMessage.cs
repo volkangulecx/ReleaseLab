@@ -15,6 +15,9 @@ public record MasteringJobMessage
     public double? MidEq { get; init; }
     public double? HighEq { get; init; }
     public string? ReferenceS3Key { get; init; }      // reference track for AI matching
+    public bool DeBreath { get; init; }               // remove breath sounds
+    public bool DeNoise { get; init; }                // remove background noise
+    public bool DeEss { get; init; }                  // reduce sibilance
     public int AttemptCount { get; init; }
     public DateTime EnqueuedAt { get; init; }
 }

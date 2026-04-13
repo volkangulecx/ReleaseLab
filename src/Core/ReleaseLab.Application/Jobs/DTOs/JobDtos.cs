@@ -9,7 +9,10 @@ public record CreateJobRequest(
     double? LowEq = null,              // -12 to +12
     double? MidEq = null,
     double? HighEq = null,
-    Guid? ReferenceFileId = null        // optional reference track
+    Guid? ReferenceFileId = null,       // optional reference track
+    bool DeBreath = false,              // remove breath sounds
+    bool DeNoise = false,               // remove background noise
+    bool DeEss = false                  // reduce sibilance
 );
 
 public record JobResponse(

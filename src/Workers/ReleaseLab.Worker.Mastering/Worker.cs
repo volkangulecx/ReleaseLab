@@ -286,7 +286,22 @@ public class MasteringWorker : BackgroundService
         if (msg.HighEq.HasValue && Math.Abs(msg.HighEq.Value) > 0.1)
             customEq += $",equalizer=f=10000:width_type=o:width=2:g={msg.HighEq.Value.ToString("F1", ic)}";
 
-        return $"highpass=f=30,{eq}{customEq},{comp},extrastereo=m={stereo.ToString("F1", ic)},loudnorm=I={targetLufs}:TP=-1:LRA={lra},alimiter=limit=0.95";
+        // Vocal processing filters
+        var vocalProcessing = "";
+
+        // De-breath: gate that closes on quiet passages (breaths are typically -40dB to -25dB)
+        if (msg.DeBreath)
+            vocalProcessing += ",agate=threshold=0.02:ratio=8:attack=1:release=50:range=0.05";
+
+        // De-noise: high-pass at 80Hz + gentle noise gate
+        if (msg.DeNoise)
+            vocalProcessing += ",highpass=f=80,afftdn=nf=-25";
+
+        // De-ess: reduce sibilance in 4-10kHz range
+        if (msg.DeEss)
+            vocalProcessing += ",firequalizer=gain_entry='entry(0,0);entry(4000,0);entry(6000,-4);entry(8000,-6);entry(10000,-3);entry(12000,0)'";
+
+        return $"highpass=f=30,{eq}{customEq},{comp}{vocalProcessing},extrastereo=m={stereo.ToString("F1", ic)},loudnorm=I={targetLufs}:TP=-1:LRA={lra},alimiter=limit=0.95";
     }
 
     private enum OutputFormat

@@ -102,6 +102,11 @@ export default function UploadPage() {
   const [eqExpanded, setEqExpanded] = useState(false);
   const [lowEq, setLowEq] = useState(0);
   const [midEq, setMidEq] = useState(0);
+
+  // Vocal processing
+  const [deBreath, setDeBreath] = useState(false);
+  const [deNoise, setDeNoise] = useState(false);
+  const [deEss, setDeEss] = useState(false);
   const [highEq, setHighEq] = useState(0);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -208,27 +213,18 @@ export default function UploadPage() {
     if (!fileId) return;
     setCreating(true);
     try {
-      const payload: {
-        fileId: string;
-        preset: string;
-        quality: string;
-        loudnessTarget?: string;
-        customLufs?: number;
-        lowEq?: number;
-        midEq?: number;
-        highEq?: number;
-      } = { fileId, preset, quality };
+      const payload: Record<string, any> = { fileId, preset, quality };
 
       if (loudnessTarget) {
         payload.loudnessTarget = loudnessTarget;
-        if (loudnessTarget === "custom") {
-          payload.customLufs = customLufs;
-        }
+        if (loudnessTarget === "custom") payload.customLufs = customLufs;
       }
-
       if (lowEq !== 0) payload.lowEq = lowEq;
       if (midEq !== 0) payload.midEq = midEq;
       if (highEq !== 0) payload.highEq = highEq;
+      if (deBreath) payload.deBreath = true;
+      if (deNoise) payload.deNoise = true;
+      if (deEss) payload.deEss = true;
 
       const { data: job } = await jobsApi.create(payload);
       toast.success("Mastering started!");
@@ -544,7 +540,37 @@ export default function UploadPage() {
               )}
             </div>
           )}
-          {!eqExpanded && <div className="mb-8" />}
+          {!eqExpanded && <div className="mb-6" />}
+
+          {/* Vocal Processing */}
+          <p className="text-[13px] font-medium text-zinc-400 mb-3">Vocal Processing</p>
+          <div className="flex flex-wrap gap-3 mb-8">
+            {[
+              { id: "deBreath", label: "De-Breath", desc: "Remove breath sounds", state: deBreath, set: setDeBreath },
+              { id: "deNoise", label: "De-Noise", desc: "Remove background noise", state: deNoise, set: setDeNoise },
+              { id: "deEss", label: "De-Ess", desc: "Reduce sibilance (S sounds)", state: deEss, set: setDeEss },
+            ].map((opt) => (
+              <button
+                key={opt.id}
+                onClick={() => opt.set(!opt.state)}
+                className={`flex items-center gap-2.5 px-4 py-2.5 rounded-lg border text-sm transition ${
+                  opt.state
+                    ? "border-violet-500/50 bg-violet-500/10 text-white"
+                    : "border-zinc-800/40 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                }`}
+              >
+                <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                  opt.state ? "border-violet-500 bg-violet-500" : "border-zinc-600"
+                }`}>
+                  {opt.state && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                </div>
+                <div>
+                  <span className="font-medium">{opt.label}</span>
+                  <span className="text-zinc-600 ml-1.5 text-xs hidden sm:inline">— {opt.desc}</span>
+                </div>
+              </button>
+            ))}
+          </div>
 
           {/* Reference Track */}
           <p className="text-[13px] font-medium text-zinc-400 mb-2">Reference Track</p>

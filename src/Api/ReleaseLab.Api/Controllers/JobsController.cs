@@ -117,6 +117,9 @@ public class JobsController : ControllerBase
             LowEq = request.LowEq,
             MidEq = request.MidEq,
             HighEq = request.HighEq,
+            DeBreath = request.DeBreath,
+            DeNoise = request.DeNoise,
+            DeEss = request.DeEss,
             AttemptCount = 0,
             EnqueuedAt = DateTime.UtcNow
         }, user.Plan);
