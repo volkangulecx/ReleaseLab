@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -37,6 +37,164 @@ interface Analysis {
   waveform: number[];
 }
 
+interface MasteringSettings {
+  preset?: string;
+  targetLufs?: number;
+  lra?: number;
+  stereo?: number;
+  loudnessTarget?: string;
+  stages?: string[];
+  deBreath?: boolean;
+  deNoise?: boolean;
+  deEss?: boolean;
+  eq?: { freq: number; gain: number }[];
+  customEq?: { low: number; mid: number; high: number };
+  [key: string]: any;
+}
+
+function MasteringChainCard({ settings }: { settings: MasteringSettings }) {
+  const stages = settings.stages || [
+    "Cleanup",
+    "EQ",
+    "Compress",
+    "Stereo",
+    "Loudnorm",
+    "Limiter",
+  ];
+
+  const vocalBadges = [
+    settings.deBreath && "De-Breath",
+    settings.deNoise && "De-Noise",
+    settings.deEss && "De-Ess",
+  ].filter(Boolean) as string[];
+
+  const hasCustomEq =
+    settings.eq && settings.eq.some((b) => b.gain !== 0);
+
+  const hasSimpleEq =
+    settings.customEq &&
+    (settings.customEq.low !== 0 ||
+      settings.customEq.mid !== 0 ||
+      settings.customEq.high !== 0);
+
+  return (
+    <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-white mb-3">Mastering Chain</h3>
+
+      {/* Preset name + target */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mb-4 text-[12px] text-zinc-400">
+        {settings.preset && (
+          <span>
+            Preset: <span className="text-zinc-200 font-medium">{settings.preset}</span>
+          </span>
+        )}
+        {settings.targetLufs != null && (
+          <span>
+            Target: <span className="text-zinc-200 font-mono">{settings.targetLufs} LUFS</span>
+          </span>
+        )}
+        {settings.lra != null && (
+          <span>
+            LRA: <span className="text-zinc-200 font-mono">{settings.lra}</span>
+          </span>
+        )}
+        {settings.stereo != null && (
+          <span>
+            Stereo: <span className="text-zinc-200 font-mono">{settings.stereo}x</span>
+          </span>
+        )}
+        {settings.loudnessTarget && (
+          <span>
+            Platform: <span className="text-zinc-200 capitalize">{settings.loudnessTarget}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Processing stages flow */}
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
+        {stages.map((stage, i) => (
+          <span key={i} className="flex items-center gap-1.5">
+            <span className="px-2.5 py-1 rounded-full bg-zinc-800/80 text-[11px] font-medium text-zinc-300 capitalize">
+              {stage}
+            </span>
+            {i < stages.length - 1 && (
+              <span className="text-zinc-700 text-[10px]">&rarr;</span>
+            )}
+          </span>
+        ))}
+      </div>
+
+      {/* Vocal processing badges */}
+      {vocalBadges.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          <span className="text-[11px] text-zinc-500 mr-1">Vocal:</span>
+          {vocalBadges.map((badge) => (
+            <span
+              key={badge}
+              className="px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-300 text-[11px] font-medium"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Custom EQ values (array format) */}
+      {hasCustomEq && settings.eq && (
+        <div className="mt-3 pt-3 border-t border-zinc-800/40">
+          <span className="text-[11px] text-zinc-500">Custom EQ:</span>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {settings.eq
+              .filter((b) => b.gain !== 0)
+              .map((b, i) => (
+                <span
+                  key={i}
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono ${
+                    b.gain > 0
+                      ? "bg-violet-500/10 text-violet-300"
+                      : "bg-red-500/10 text-red-300"
+                  }`}
+                >
+                  {b.freq >= 1000 ? `${b.freq / 1000}k` : b.freq}Hz{" "}
+                  {b.gain > 0 ? "+" : ""}
+                  {b.gain}dB
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {/* Custom EQ values (simple low/mid/high format) */}
+      {!hasCustomEq && hasSimpleEq && settings.customEq && (
+        <div className="mt-3 pt-3 border-t border-zinc-800/40">
+          <span className="text-[11px] text-zinc-500">Custom EQ:</span>
+          <div className="flex flex-wrap gap-2 mt-1.5">
+            {[
+              { label: "Low", val: settings.customEq.low },
+              { label: "Mid", val: settings.customEq.mid },
+              { label: "High", val: settings.customEq.high },
+            ]
+              .filter((b) => b.val !== 0)
+              .map((b) => (
+                <span
+                  key={b.label}
+                  className={`px-2 py-0.5 rounded text-[11px] font-mono ${
+                    b.val > 0
+                      ? "bg-violet-500/10 text-violet-300"
+                      : "bg-red-500/10 text-red-300"
+                  }`}
+                >
+                  {b.label} {b.val > 0 ? "+" : ""}
+                  {b.val}dB
+                </span>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function JobDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -47,6 +205,15 @@ export default function JobDetailPage() {
   const [inputUrl, setInputUrl] = useState<string | null>(null);
   const [outputUrl, setOutputUrl] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+
+  const masteringSettings = useMemo<MasteringSettings | null>(() => {
+    if (!job?.masteringSettings) return null;
+    try {
+      return JSON.parse(job.masteringSettings);
+    } catch {
+      return null;
+    }
+  }, [job?.masteringSettings]);
 
   useEffect(() => {
     loadJob();
@@ -273,42 +440,13 @@ export default function JobDetailPage() {
                 )}
               </div>
             </div>
+
+            {/* Mastering Chain Card */}
+            {masteringSettings && (
+              <MasteringChainCard settings={masteringSettings} />
+            )}
           </div>
         )}
-
-        {/* Mastering Chain Details */}
-        {isDone && job.masteringSettings && (() => {
-          try {
-            const settings = JSON.parse(job.masteringSettings);
-            return (
-              <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-6 mb-6">
-                <p className="text-[13px] font-medium text-zinc-400 mb-4">Processing Chain</p>
-
-                {/* Stages flow */}
-                <div className="flex flex-wrap gap-2 mb-4">
-                  {(settings.stages || ["cleanup", "eq", "compression", "stereo", "loudnorm", "limiter"]).map((s: string) => (
-                    <span key={s} className="px-2.5 py-1 rounded-md bg-zinc-800/60 text-zinc-300 text-xs font-medium capitalize">
-                      {s}
-                    </span>
-                  ))}
-                </div>
-
-                {/* Key settings */}
-                <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-zinc-500">
-                  <span>Preset: <span className="text-zinc-300">{settings.preset}</span></span>
-                  <span>Target: <span className="text-zinc-300">{settings.targetLufs} LUFS</span></span>
-                  <span>Platform: <span className="text-zinc-300 capitalize">{settings.loudnessTarget || "default"}</span></span>
-                  {settings.deBreath && <span className="text-violet-400">De-Breath</span>}
-                  {settings.deNoise && <span className="text-violet-400">De-Noise</span>}
-                  {settings.deEss && <span className="text-violet-400">De-Ess</span>}
-                  {settings.customEq && (settings.customEq.low !== 0 || settings.customEq.mid !== 0 || settings.customEq.high !== 0) && (
-                    <span>EQ: <span className="text-zinc-300">L{settings.customEq.low > 0 ? "+" : ""}{settings.customEq.low} M{settings.customEq.mid > 0 ? "+" : ""}{settings.customEq.mid} H{settings.customEq.high > 0 ? "+" : ""}{settings.customEq.high}</span></span>
-                  )}
-                </div>
-              </div>
-            );
-          } catch { return null; }
-        })()}
 
         {/* Failed */}
         {isFailed && (
