@@ -109,6 +109,13 @@ export const mixApi = {
     api.post(`/api/v1/mix/projects/${projectId}/export`),
   autoMix: (projectId: string) =>
     api.post(`/api/v1/mix/projects/${projectId}/auto-mix`),
+  deleteProject: (projectId: string) =>
+    api.delete(`/api/v1/mix/projects/${projectId}`),
+  reorderTracks: (projectId: string, order: { trackId: string; index: number }[]) =>
+    api.post(`/api/v1/mix/projects/${projectId}/reorder`, { order }),
+  duplicateProject: (projectId: string) =>
+    api.post(`/api/v1/mix/projects/${projectId}/duplicate`),
+  eqPresets: () => api.get("/api/v1/mix/eq-presets"),
 };
 
 // Releases

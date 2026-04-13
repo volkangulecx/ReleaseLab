@@ -2,11 +2,22 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import toast from "react-hot-toast";
-import { ArrowLeft, Plus, Trash2, Upload, Loader2, Wand2, Download } from "lucide-react";
+import {
+  ArrowLeft,
+  Plus,
+  Trash2,
+  Upload,
+  Loader2,
+  Wand2,
+  Download,
+  Copy,
+  Music2,
+  Calendar,
+} from "lucide-react";
 import { mixApi, uploadApi } from "@/lib/api";
 import axios from "axios";
 
-/* -- Types ---------------------------------------- */
+/* ── Types ──────────────────────────────────────────── */
 
 interface MixFile {
   id: string;
@@ -18,10 +29,17 @@ interface MixFile {
 interface Track {
   id: string;
   name: string;
+  color: string;
   volume: number;
   pan: number;
   muted: boolean;
   solo: boolean;
+  eqPreset: string;
+  lowGain: number;
+  midGain: number;
+  highGain: number;
+  reverbAmount: number;
+  compressorThreshold: number;
   file?: MixFile;
 }
 
@@ -34,9 +52,41 @@ interface Project {
   tracks?: Track[];
 }
 
-/* -- Track Row ------------------------------------ */
+interface EqPresetOption {
+  id: string;
+  name: string;
+  low: number;
+  mid: number;
+  high: number;
+}
 
-function TrackRow({
+const TRACK_COLORS = [
+  "#8b5cf6",
+  "#3b82f6",
+  "#06b6d4",
+  "#10b981",
+  "#f59e0b",
+  "#ef4444",
+  "#ec4899",
+  "#6366f1",
+  "#14b8a6",
+  "#f97316",
+];
+
+const DEFAULT_EQ_PRESETS: EqPresetOption[] = [
+  { id: "", name: "None", low: 0, mid: 0, high: 0 },
+  { id: "vocal", name: "Vocal", low: -2, mid: 3, high: 2 },
+  { id: "drums", name: "Drums", low: 4, mid: -1, high: 3 },
+  { id: "bass", name: "Bass", low: 6, mid: -2, high: -3 },
+  { id: "guitar", name: "Guitar", low: -1, mid: 4, high: 1 },
+  { id: "keys", name: "Keys", low: -2, mid: 2, high: 4 },
+  { id: "bright", name: "Bright", low: -3, mid: 0, high: 6 },
+  { id: "warm", name: "Warm", low: 4, mid: 1, high: -4 },
+];
+
+/* ── Channel Strip ──────────────────────────────────── */
+
+function ChannelStrip({
   track,
   projectId,
   onUpdate,
@@ -48,101 +98,259 @@ function TrackRow({
   onDelete: (trackId: string) => void;
 }) {
   const [name, setName] = useState(track.name);
-  const nameTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debounceTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  // Sync name from prop when track changes externally (e.g. auto-mix)
+  useEffect(() => {
+    setName(track.name);
+  }, [track.name]);
+
+  const debouncedUpdate = useCallback(
+    (field: string, data: Partial<Track>) => {
+      if (debounceTimers.current[field]) {
+        clearTimeout(debounceTimers.current[field]);
+      }
+      debounceTimers.current[field] = setTimeout(() => {
+        onUpdate(track.id, data);
+      }, 300);
+    },
+    [onUpdate, track.id]
+  );
 
   const handleNameChange = (val: string) => {
     setName(val);
-    if (nameTimeout.current) clearTimeout(nameTimeout.current);
-    nameTimeout.current = setTimeout(() => {
-      onUpdate(track.id, { name: val });
-    }, 600);
+    debouncedUpdate("name", { name: val });
+  };
+
+  const handleEqPresetChange = (presetId: string) => {
+    const preset = DEFAULT_EQ_PRESETS.find((p) => p.id === presetId);
+    if (preset) {
+      onUpdate(track.id, {
+        eqPreset: presetId,
+        lowGain: preset.low,
+        midGain: preset.mid,
+        highGain: preset.high,
+      });
+    } else {
+      onUpdate(track.id, { eqPreset: presetId });
+    }
   };
 
   const volumePercent = Math.round((track.volume ?? 1) * 100);
+  const panValue = Math.round((track.pan ?? 0) * 100);
+  const lowGain = track.lowGain ?? 0;
+  const midGain = track.midGain ?? 0;
+  const highGain = track.highGain ?? 0;
+  const trackColor = track.color || TRACK_COLORS[0];
+
+  const panLabel =
+    panValue === 0 ? "C" : panValue < 0 ? `${Math.abs(panValue)}L` : `${panValue}R`;
 
   return (
-    <div className="flex items-center gap-3 bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-4">
-      {/* Name */}
-      <input
-        type="text"
-        value={name}
-        onChange={(e) => handleNameChange(e.target.value)}
-        className="bg-zinc-900/50 border border-zinc-800 rounded-lg px-3 py-1.5 text-[13px] text-zinc-200 w-36 shrink-0 focus:outline-none focus:border-zinc-600 transition-colors"
+    <div className="bg-zinc-900/70 border border-zinc-800/50 rounded-xl p-4 w-[200px] shrink-0 flex flex-col gap-3 relative group">
+      {/* Color indicator */}
+      <div
+        className="absolute top-0 left-3 right-3 h-1 rounded-b-full"
+        style={{ backgroundColor: trackColor }}
       />
 
+      {/* Track name */}
+      <div className="pt-1">
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => handleNameChange(e.target.value)}
+          className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-3 py-1.5 text-[13px] text-zinc-200 focus:outline-none focus:border-zinc-500 transition-colors text-center font-medium"
+        />
+      </div>
+
+      {/* EQ Preset */}
+      <div>
+        <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-1 block">
+          EQ Preset
+        </label>
+        <select
+          value={track.eqPreset || ""}
+          onChange={(e) => handleEqPresetChange(e.target.value)}
+          className="w-full bg-zinc-800/60 border border-zinc-700/50 rounded-lg px-2 py-1.5 text-[12px] text-zinc-300 focus:outline-none focus:border-zinc-500 transition-colors appearance-none cursor-pointer"
+        >
+          {DEFAULT_EQ_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* 3-band EQ */}
+      <div className="space-y-2">
+        <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium block">
+          EQ
+        </label>
+
+        {/* Low */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500 w-4 font-mono">L</span>
+          <input
+            type="range"
+            min={-12}
+            max={12}
+            step={0.5}
+            value={lowGain}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              debouncedUpdate("lowGain", { lowGain: val });
+            }}
+            className="flex-1 accent-emerald-500 h-1 cursor-pointer"
+          />
+          <span className="text-[10px] text-zinc-400 w-8 text-right tabular-nums font-mono">
+            {lowGain > 0 ? "+" : ""}
+            {lowGain}
+          </span>
+        </div>
+
+        {/* Mid */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500 w-4 font-mono">M</span>
+          <input
+            type="range"
+            min={-12}
+            max={12}
+            step={0.5}
+            value={midGain}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              debouncedUpdate("midGain", { midGain: val });
+            }}
+            className="flex-1 accent-amber-500 h-1 cursor-pointer"
+          />
+          <span className="text-[10px] text-zinc-400 w-8 text-right tabular-nums font-mono">
+            {midGain > 0 ? "+" : ""}
+            {midGain}
+          </span>
+        </div>
+
+        {/* High */}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-zinc-500 w-4 font-mono">H</span>
+          <input
+            type="range"
+            min={-12}
+            max={12}
+            step={0.5}
+            value={highGain}
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              debouncedUpdate("highGain", { highGain: val });
+            }}
+            className="flex-1 accent-sky-500 h-1 cursor-pointer"
+          />
+          <span className="text-[10px] text-zinc-400 w-8 text-right tabular-nums font-mono">
+            {highGain > 0 ? "+" : ""}
+            {highGain}
+          </span>
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div className="border-t border-zinc-800/60" />
+
       {/* Volume */}
-      <div className="flex items-center gap-2 flex-1 min-w-0">
-        <span className="text-[11px] text-zinc-500 w-8 shrink-0">Vol</span>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+            Volume
+          </label>
+          <span className="text-[11px] text-zinc-300 tabular-nums font-mono font-medium">
+            {volumePercent}%
+          </span>
+        </div>
         <input
           type="range"
           min={0}
           max={200}
           value={volumePercent}
-          onChange={(e) =>
-            onUpdate(track.id, { volume: Number(e.target.value) / 100 })
-          }
-          className="flex-1 accent-violet-500 h-1.5 cursor-pointer"
+          onChange={(e) => {
+            const val = Number(e.target.value) / 100;
+            debouncedUpdate("volume", { volume: val });
+          }}
+          className="w-full accent-violet-500 h-1.5 cursor-pointer"
         />
-        <span className="text-[11px] text-zinc-400 w-10 text-right tabular-nums">
-          {volumePercent}%
-        </span>
+        <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
+          <span>0</span>
+          <span>100</span>
+          <span>200</span>
+        </div>
       </div>
 
       {/* Pan */}
-      <div className="flex items-center gap-2 w-44 shrink-0">
-        <span className="text-[11px] text-zinc-500 w-5">L</span>
+      <div>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium">
+            Pan
+          </label>
+          <span className="text-[11px] text-zinc-300 tabular-nums font-mono font-medium">
+            {panLabel}
+          </span>
+        </div>
         <input
           type="range"
           min={-100}
           max={100}
-          value={Math.round((track.pan ?? 0) * 100)}
-          onChange={(e) =>
-            onUpdate(track.id, { pan: Number(e.target.value) / 100 })
-          }
-          className="flex-1 accent-violet-500 h-1.5 cursor-pointer"
+          value={panValue}
+          onChange={(e) => {
+            const val = Number(e.target.value) / 100;
+            debouncedUpdate("pan", { pan: val });
+          }}
+          className="w-full accent-violet-500 h-1.5 cursor-pointer"
         />
-        <span className="text-[11px] text-zinc-500 w-5 text-right">R</span>
-        <span className="text-[11px] text-zinc-400 w-8 text-right tabular-nums">
-          {Math.round((track.pan ?? 0) * 100)}
-        </span>
+        <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
+          <span>L</span>
+          <span>C</span>
+          <span>R</span>
+        </div>
       </div>
 
-      {/* Mute */}
-      <button
-        onClick={() => onUpdate(track.id, { muted: !track.muted })}
-        className={`w-8 h-8 rounded-lg text-[12px] font-bold transition-colors shrink-0 ${
-          track.muted
-            ? "bg-red-500/20 text-red-400 border border-red-500/40"
-            : "bg-zinc-800/60 text-zinc-500 border border-zinc-800 hover:text-zinc-300"
-        }`}
-      >
-        M
-      </button>
+      {/* Divider */}
+      <div className="border-t border-zinc-800/60" />
 
-      {/* Solo */}
-      <button
-        onClick={() => onUpdate(track.id, { solo: !track.solo })}
-        className={`w-8 h-8 rounded-lg text-[12px] font-bold transition-colors shrink-0 ${
-          track.solo
-            ? "bg-amber-500/20 text-amber-400 border border-amber-500/40"
-            : "bg-zinc-800/60 text-zinc-500 border border-zinc-800 hover:text-zinc-300"
-        }`}
-      >
-        S
-      </button>
+      {/* Mute / Solo */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => onUpdate(track.id, { muted: !track.muted })}
+          className={`flex-1 h-9 rounded-lg text-[12px] font-bold transition-all ${
+            track.muted
+              ? "bg-red-500/20 text-red-400 border border-red-500/40 shadow-[0_0_8px_rgba(239,68,68,0.15)]"
+              : "bg-zinc-800/60 text-zinc-500 border border-zinc-700/50 hover:text-zinc-300 hover:border-zinc-600"
+          }`}
+        >
+          M
+        </button>
+        <button
+          onClick={() => onUpdate(track.id, { solo: !track.solo })}
+          className={`flex-1 h-9 rounded-lg text-[12px] font-bold transition-all ${
+            track.solo
+              ? "bg-amber-500/20 text-amber-400 border border-amber-500/40 shadow-[0_0_8px_rgba(245,158,11,0.15)]"
+              : "bg-zinc-800/60 text-zinc-500 border border-zinc-700/50 hover:text-zinc-300 hover:border-zinc-600"
+          }`}
+        >
+          S
+        </button>
+      </div>
 
       {/* Delete */}
       <button
         onClick={() => onDelete(track.id)}
-        className="w-8 h-8 rounded-lg bg-zinc-800/60 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors shrink-0 flex items-center justify-center"
+        className="w-full h-8 rounded-lg bg-zinc-800/40 border border-zinc-800/50 text-zinc-600 hover:text-red-400 hover:border-red-500/30 transition-all flex items-center justify-center gap-1.5 text-[11px]"
       >
-        <Trash2 className="w-3.5 h-3.5" />
+        <Trash2 className="w-3 h-3" />
+        Remove
       </button>
     </div>
   );
 }
 
-/* -- Main Page ------------------------------------ */
+/* ── Main Page ──────────────────────────────────────── */
 
 export default function MixingPage() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -155,8 +363,10 @@ export default function MixingPage() {
   const [uploadingTrack, setUploadingTrack] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [autoMixing, setAutoMixing] = useState(false);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
-  /* -- Fetch projects -- */
+  /* ── Fetch projects ── */
   const fetchProjects = useCallback(async () => {
     try {
       const { data } = await mixApi.listProjects();
@@ -172,7 +382,7 @@ export default function MixingPage() {
     fetchProjects();
   }, [fetchProjects]);
 
-  /* -- Select project -- */
+  /* ── Select project ── */
   const openProject = async (id: string) => {
     setLoadingProject(true);
     try {
@@ -185,7 +395,7 @@ export default function MixingPage() {
     }
   };
 
-  /* -- Create project -- */
+  /* ── Create project ── */
   const handleCreateProject = async () => {
     const trimmed = newProjectName.trim();
     if (!trimmed) return;
@@ -203,7 +413,35 @@ export default function MixingPage() {
     }
   };
 
-  /* -- Add track (upload file) -- */
+  /* ── Duplicate project ── */
+  const handleDuplicateProject = async (projectId: string) => {
+    setDuplicating(projectId);
+    try {
+      await mixApi.duplicateProject(projectId);
+      await fetchProjects();
+      toast.success("Project duplicated");
+    } catch {
+      toast.error("Failed to duplicate project");
+    } finally {
+      setDuplicating(null);
+    }
+  };
+
+  /* ── Delete project ── */
+  const handleDeleteProject = async (projectId: string) => {
+    setDeleting(projectId);
+    try {
+      await mixApi.deleteProject(projectId);
+      setProjects((prev) => prev.filter((p) => p.id !== projectId));
+      toast.success("Project deleted");
+    } catch {
+      toast.error("Failed to delete project");
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  /* ── Add track (upload file) ── */
   const handleAddTrack = async (file: File) => {
     if (!selectedProject) return;
     setUploadingTrack(true);
@@ -231,7 +469,6 @@ export default function MixingPage() {
       await uploadApi.complete(initData.fileId);
       await mixApi.addTrack(selectedProject.id, initData.fileId, file.name);
 
-      // Refresh project
       const { data: updated } = await mixApi.getProject(selectedProject.id);
       setSelectedProject(updated);
       toast.success("Track added");
@@ -242,47 +479,50 @@ export default function MixingPage() {
     }
   };
 
-  /* -- Update track -- */
-  const handleUpdateTrack = async (
-    trackId: string,
-    data: Partial<Track>
-  ) => {
-    if (!selectedProject) return;
-    try {
-      await mixApi.updateTrack(selectedProject.id, trackId, data);
-      setSelectedProject((prev) => {
-        if (!prev || !prev.tracks) return prev;
-        return {
-          ...prev,
-          tracks: prev.tracks.map((t) =>
-            t.id === trackId ? { ...t, ...data } : t
-          ),
-        };
-      });
-    } catch {
-      toast.error("Failed to update track");
-    }
-  };
+  /* ── Update track ── */
+  const handleUpdateTrack = useCallback(
+    async (trackId: string, data: Partial<Track>) => {
+      if (!selectedProject) return;
+      try {
+        await mixApi.updateTrack(selectedProject.id, trackId, data);
+        setSelectedProject((prev) => {
+          if (!prev || !prev.tracks) return prev;
+          return {
+            ...prev,
+            tracks: prev.tracks.map((t) =>
+              t.id === trackId ? { ...t, ...data } : t
+            ),
+          };
+        });
+      } catch {
+        toast.error("Failed to update track");
+      }
+    },
+    [selectedProject]
+  );
 
-  /* -- Delete track -- */
-  const handleDeleteTrack = async (trackId: string) => {
-    if (!selectedProject) return;
-    try {
-      await mixApi.deleteTrack(selectedProject.id, trackId);
-      setSelectedProject((prev) => {
-        if (!prev || !prev.tracks) return prev;
-        return {
-          ...prev,
-          tracks: prev.tracks.filter((t) => t.id !== trackId),
-        };
-      });
-      toast.success("Track removed");
-    } catch {
-      toast.error("Failed to delete track");
-    }
-  };
+  /* ── Delete track ── */
+  const handleDeleteTrack = useCallback(
+    async (trackId: string) => {
+      if (!selectedProject) return;
+      try {
+        await mixApi.deleteTrack(selectedProject.id, trackId);
+        setSelectedProject((prev) => {
+          if (!prev || !prev.tracks) return prev;
+          return {
+            ...prev,
+            tracks: prev.tracks.filter((t) => t.id !== trackId),
+          };
+        });
+        toast.success("Track removed");
+      } catch {
+        toast.error("Failed to delete track");
+      }
+    },
+    [selectedProject]
+  );
 
-  /* -- Export Mixdown -- */
+  /* ── Export Mixdown ── */
   const handleExport = async () => {
     if (!selectedProject) return;
     setExporting(true);
@@ -297,13 +537,12 @@ export default function MixingPage() {
     }
   };
 
-  /* -- Auto Mix -- */
+  /* ── Auto Mix ── */
   const handleAutoMix = async () => {
     if (!selectedProject) return;
     setAutoMixing(true);
     try {
       const { data } = await mixApi.autoMix(selectedProject.id);
-      // Update all track volumes/pans from response
       if (data.tracks && Array.isArray(data.tracks)) {
         setSelectedProject((prev) => {
           if (!prev || !prev.tracks) return prev;
@@ -316,6 +555,10 @@ export default function MixingPage() {
                   ...t,
                   volume: updated.volume ?? t.volume,
                   pan: updated.pan ?? t.pan,
+                  lowGain: updated.lowGain ?? t.lowGain,
+                  midGain: updated.midGain ?? t.midGain,
+                  highGain: updated.highGain ?? t.highGain,
+                  eqPreset: updated.eqPreset ?? t.eqPreset,
                 };
               }
               return t;
@@ -323,7 +566,7 @@ export default function MixingPage() {
           };
         });
       }
-      toast.success("Auto-mix applied \u2014 volumes balanced, tracks panned");
+      toast.success("Auto-mix applied");
     } catch (err: any) {
       toast.error(err.response?.data?.message || "Auto-mix failed");
     } finally {
@@ -331,123 +574,214 @@ export default function MixingPage() {
     }
   };
 
-  /* -- Mixer View -- */
+  /* ════════════════════════════════════════════════════
+     VIEW 2: MIXER
+     ════════════════════════════════════════════════════ */
   if (selectedProject) {
+    const tracks = selectedProject.tracks || [];
+
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="flex flex-col h-full min-h-0">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex items-center gap-4 mb-6 shrink-0">
           <button
             onClick={() => {
               setSelectedProject(null);
               fetchProjects();
             }}
-            className="w-8 h-8 rounded-lg bg-zinc-900/50 border border-zinc-800/40 flex items-center justify-center text-zinc-400 hover:text-white transition-colors shrink-0"
+            className="w-9 h-9 rounded-lg bg-zinc-900/50 border border-zinc-800/40 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-700 transition-colors shrink-0"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="text-lg font-semibold text-white truncate">
-            {selectedProject.name}
-          </h1>
-          <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium">
-            {selectedProject.status}
-          </span>
+
+          <div className="min-w-0 flex-1">
+            <h1 className="text-lg font-semibold text-white truncate">
+              {selectedProject.name}
+            </h1>
+            <span className="text-[11px] text-zinc-500 uppercase tracking-wider font-medium">
+              {selectedProject.status}
+              {tracks.length > 0 && (
+                <span className="ml-2 normal-case tracking-normal">
+                  {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
+                </span>
+              )}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAutoMix}
+              disabled={autoMixing || tracks.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium bg-zinc-900/50 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors disabled:opacity-40"
+            >
+              {autoMixing ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Wand2 className="w-3.5 h-3.5" />
+              )}
+              {autoMixing ? "Mixing..." : "Auto Mix"}
+            </button>
+
+            <button
+              onClick={handleExport}
+              disabled={exporting || tracks.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium text-zinc-950 disabled:opacity-40 transition-all"
+              style={{
+                background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
+              }}
+            >
+              {exporting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5" />
+              )}
+              {exporting ? "Exporting..." : "Export Mixdown"}
+            </button>
+          </div>
         </div>
 
-        {/* Add Track */}
-        <div className="mb-6">
-          <button
-            onClick={() =>
-              !uploadingTrack &&
-              document.getElementById("track-file-input")?.click()
-            }
-            disabled={uploadingTrack}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg border border-dashed border-zinc-700/60 hover:border-zinc-600 text-[13px] text-zinc-400 hover:text-zinc-200 transition-colors disabled:opacity-50"
-          >
-            {uploadingTrack ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Upload className="w-4 h-4" />
-            )}
-            {uploadingTrack ? "Uploading..." : "Add Track"}
-          </button>
-          <input
-            id="track-file-input"
-            type="file"
-            accept=".wav,.mp3,.flac"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) handleAddTrack(f);
-              e.target.value = "";
-            }}
-          />
-        </div>
-
-        {/* Tracks */}
+        {/* Mixer console */}
         {loadingProject ? (
           <div className="flex justify-center py-16">
             <div className="w-6 h-6 border-2 border-zinc-700 border-t-white rounded-full animate-spin" />
           </div>
-        ) : selectedProject.tracks && selectedProject.tracks.length > 0 ? (
-          <div className="space-y-2">
-            {selectedProject.tracks.map((track) => (
-              <TrackRow
-                key={track.id}
-                track={track}
-                projectId={selectedProject.id}
-                onUpdate={handleUpdateTrack}
-                onDelete={handleDeleteTrack}
-              />
-            ))}
+        ) : tracks.length > 0 ? (
+          <div className="flex-1 min-h-0 overflow-x-auto overflow-y-auto pb-4">
+            <div className="flex gap-3 items-stretch min-w-min">
+              {tracks.map((track) => (
+                <ChannelStrip
+                  key={track.id}
+                  track={track}
+                  projectId={selectedProject.id}
+                  onUpdate={handleUpdateTrack}
+                  onDelete={handleDeleteTrack}
+                />
+              ))}
+
+              {/* Add Track button as last strip */}
+              <button
+                onClick={() =>
+                  !uploadingTrack &&
+                  document.getElementById("track-file-input")?.click()
+                }
+                disabled={uploadingTrack}
+                className="w-[200px] shrink-0 rounded-xl border-2 border-dashed border-zinc-800/60 hover:border-zinc-700/80 bg-zinc-900/20 hover:bg-zinc-900/40 flex flex-col items-center justify-center gap-3 text-zinc-500 hover:text-zinc-300 transition-all min-h-[400px] disabled:opacity-50"
+              >
+                {uploadingTrack ? (
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                ) : (
+                  <Upload className="w-6 h-6" />
+                )}
+                <span className="text-[13px] font-medium">
+                  {uploadingTrack ? "Uploading..." : "Add Track"}
+                </span>
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="text-center py-16">
-            <p className="text-zinc-500 text-[13px]">
-              No tracks yet. Add an audio file to get started.
-            </p>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Music2 className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+              <p className="text-zinc-500 text-[14px] mb-4">
+                No tracks yet. Upload an audio file to get started.
+              </p>
+              <button
+                onClick={() =>
+                  !uploadingTrack &&
+                  document.getElementById("track-file-input")?.click()
+                }
+                disabled={uploadingTrack}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-[13px] font-medium text-zinc-950 mx-auto transition-all disabled:opacity-50"
+                style={{
+                  background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
+                }}
+              >
+                {uploadingTrack ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {uploadingTrack ? "Uploading..." : "Add Track"}
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="mt-8 flex gap-3">
-          <button
-            onClick={handleAutoMix}
-            disabled={autoMixing || !selectedProject.tracks?.length}
-            className="flex-1 py-3.5 rounded-xl font-medium text-[14px] bg-zinc-900/50 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {autoMixing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Wand2 className="w-4 h-4" />
-            )}
-            {autoMixing ? "Mixing..." : "Auto Mix"}
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting || !selectedProject.tracks?.length}
-            className="flex-1 py-3.5 rounded-xl font-medium text-[14px] text-zinc-950 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            style={{
-              background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
-            }}
-          >
-            {exporting ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-            {exporting ? "Exporting..." : "Export Mixdown"}
-          </button>
-        </div>
+        {/* Hidden file input */}
+        <input
+          id="track-file-input"
+          type="file"
+          accept=".wav,.mp3,.flac"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) handleAddTrack(f);
+            e.target.value = "";
+          }}
+        />
+
+        {/* Bottom action bar */}
+        {tracks.length > 0 && (
+          <div className="shrink-0 mt-4 pt-4 border-t border-zinc-800/40 flex items-center justify-between">
+            <div className="text-[12px] text-zinc-600">
+              {tracks.filter((t) => t.muted).length > 0 && (
+                <span className="text-red-400/70 mr-3">
+                  {tracks.filter((t) => t.muted).length} muted
+                </span>
+              )}
+              {tracks.filter((t) => t.solo).length > 0 && (
+                <span className="text-amber-400/70">
+                  {tracks.filter((t) => t.solo).length} solo
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleAutoMix}
+                disabled={autoMixing || tracks.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-medium bg-zinc-900/50 border border-zinc-800 text-zinc-300 hover:text-white hover:border-zinc-700 transition-colors disabled:opacity-40"
+              >
+                {autoMixing ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Wand2 className="w-3.5 h-3.5" />
+                )}
+                Auto Mix
+              </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting || tracks.length === 0}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-[13px] font-medium text-zinc-950 disabled:opacity-40 transition-all"
+                style={{
+                  background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
+                }}
+              >
+                {exporting ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" />
+                )}
+                Export Mixdown
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
-  /* -- Project List View -- */
+  /* ════════════════════════════════════════════════════
+     VIEW 1: PROJECT LIST
+     ════════════════════════════════════════════════════ */
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-lg font-semibold text-white">Mixing Projects</h1>
+        <div>
+          <h1 className="text-lg font-semibold text-white">Mixing Projects</h1>
+          <p className="text-[13px] text-zinc-500 mt-1">
+            Create and manage your mix sessions
+          </p>
+        </div>
         {!showNewInput && (
           <button
             onClick={() => setShowNewInput(true)}
@@ -464,7 +798,7 @@ export default function MixingPage() {
 
       {/* New project input */}
       {showNewInput && (
-        <div className="flex items-center gap-3 mb-6">
+        <div className="flex items-center gap-3 mb-6 bg-zinc-900/30 border border-zinc-800/40 rounded-xl p-4">
           <input
             type="text"
             placeholder="Project name..."
@@ -477,7 +811,7 @@ export default function MixingPage() {
           <button
             onClick={handleCreateProject}
             disabled={creatingProject || !newProjectName.trim()}
-            className="px-4 py-2.5 rounded-lg text-[13px] font-medium text-zinc-950 disabled:opacity-50 transition-all"
+            className="px-5 py-2.5 rounded-lg text-[13px] font-medium text-zinc-950 disabled:opacity-50 transition-all"
             style={{
               background: "linear-gradient(135deg, #e4e4e7, #ffffff)",
             }}
@@ -493,7 +827,7 @@ export default function MixingPage() {
               setShowNewInput(false);
               setNewProjectName("");
             }}
-            className="text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors"
+            className="text-[13px] text-zinc-500 hover:text-zinc-300 transition-colors px-2"
           >
             Cancel
           </button>
@@ -507,40 +841,90 @@ export default function MixingPage() {
         </div>
       ) : projects.length === 0 ? (
         <div className="text-center py-16">
-          <p className="text-zinc-500 text-[13px]">
-            No mixing projects yet. Create one to get started.
+          <Music2 className="w-10 h-10 text-zinc-700 mx-auto mb-3" />
+          <p className="text-zinc-500 text-[14px] mb-1">
+            No mixing projects yet.
+          </p>
+          <p className="text-zinc-600 text-[13px]">
+            Create one to get started with mixing.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-3">
           {projects.map((project) => (
-            <button
+            <div
               key={project.id}
-              onClick={() => openProject(project.id)}
-              className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-5 text-left hover:border-zinc-700/60 hover:bg-white/[0.02] transition-colors"
+              className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-5 hover:border-zinc-700/60 hover:bg-white/[0.02] transition-colors group"
             >
-              <p className="text-[14px] font-medium text-zinc-200 mb-1 truncate">
-                {project.name}
-              </p>
-              <div className="flex items-center gap-3 text-[12px] text-zinc-500">
-                <span>
-                  {project.trackCount ?? 0}{" "}
-                  {(project.trackCount ?? 0) === 1 ? "track" : "tracks"}
-                </span>
-                <span className="text-zinc-700">&middot;</span>
-                <span className="uppercase tracking-wider">
-                  {project.status}
-                </span>
-                {project.createdAt && (
-                  <>
-                    <span className="text-zinc-700">&middot;</span>
-                    <span>
-                      {new Date(project.createdAt).toLocaleDateString()}
+              <div className="flex items-center gap-4">
+                {/* Project info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[14px] font-medium text-zinc-200 mb-1.5 truncate">
+                    {project.name}
+                  </p>
+                  <div className="flex items-center gap-3 text-[12px] text-zinc-500">
+                    <span className="flex items-center gap-1">
+                      <Music2 className="w-3 h-3" />
+                      {project.trackCount ?? 0}{" "}
+                      {(project.trackCount ?? 0) === 1 ? "track" : "tracks"}
                     </span>
-                  </>
-                )}
+                    <span className="text-zinc-700">&middot;</span>
+                    <span className="uppercase tracking-wider">
+                      {project.status}
+                    </span>
+                    {project.createdAt && (
+                      <>
+                        <span className="text-zinc-700">&middot;</span>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(project.createdAt).toLocaleDateString()}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={() => openProject(project.id)}
+                    className="px-4 py-2 rounded-lg text-[12px] font-medium bg-zinc-800/60 border border-zinc-700/50 text-zinc-300 hover:text-white hover:border-zinc-600 transition-colors"
+                  >
+                    Open
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDuplicateProject(project.id);
+                    }}
+                    disabled={duplicating === project.id}
+                    className="w-9 h-9 rounded-lg bg-zinc-800/40 border border-zinc-700/50 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 transition-colors flex items-center justify-center disabled:opacity-50"
+                    title="Duplicate"
+                  >
+                    {duplicating === project.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteProject(project.id);
+                    }}
+                    disabled={deleting === project.id}
+                    className="w-9 h-9 rounded-lg bg-zinc-800/40 border border-zinc-700/50 text-zinc-500 hover:text-red-400 hover:border-red-500/30 transition-colors flex items-center justify-center disabled:opacity-50"
+                    title="Delete"
+                  >
+                    {deleting === project.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                  </button>
+                </div>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       )}
