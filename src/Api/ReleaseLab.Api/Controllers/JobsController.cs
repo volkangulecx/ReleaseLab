@@ -260,6 +260,83 @@ public class JobsController : ControllerBase
         return Ok(MapToResponse(job));
     }
 
+    /// <summary>Re-master the same file with different settings.</summary>
+    [HttpPost("{id:guid}/remaster")]
+    public async Task<IActionResult> Remaster(
+        Guid id,
+        [FromBody] CreateJobRequest request,
+        [FromServices] ISubscriptionService subscriptions)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        var originalJob = await _db.Jobs.FirstOrDefaultAsync(j => j.Id == id && j.UserId == userId);
+        if (originalJob is null) return NotFound();
+
+        // Use same input file
+        var file = await _db.Files.FindAsync(originalJob.InputFileId);
+        if (file is null) return NotFound();
+
+        var canCreate = await subscriptions.CanCreateMasterAsync(userId);
+        if (!canCreate)
+            return BadRequest(new { message = "Monthly limit reached" });
+
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return Unauthorized();
+
+        var validGenres = new[] { "hiphop", "edm", "jazz", "classical", "pop", "rock" };
+        var presetStr = request.Preset;
+
+        if (!Enum.TryParse<MasteringPreset>(request.Preset, true, out var preset) &&
+            !validGenres.Contains(request.Preset.ToLowerInvariant()))
+            return BadRequest(new { message = "Invalid preset" });
+
+        if (!Enum.TryParse<AudioQuality>(request.Quality, true, out var quality))
+            quality = AudioQuality.Preview;
+
+        var creditCost = quality == AudioQuality.HiRes ? 1 : 0;
+        if (creditCost > 0 && user.CreditBalance < creditCost)
+            return BadRequest(new { message = "Insufficient credits" });
+
+        var job = new Job
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            InputFileId = file.Id,
+            Preset = Enum.IsDefined(typeof(MasteringPreset), preset) ? preset : MasteringPreset.Balanced,
+            Quality = quality,
+            Status = JobStatus.Queued,
+            CreditsCost = creditCost,
+            EstimatedDurationSec = file.DurationSec.HasValue ? (int)(file.DurationSec.Value * 2) + 5 : 30,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        if (creditCost > 0)
+        {
+            user.CreditBalance -= creditCost;
+            _db.CreditLedgerEntries.Add(new CreditLedgerEntry
+            {
+                UserId = userId, Delta = -creditCost, Reason = CreditReason.Job,
+                RefJobId = job.Id, BalanceAfter = user.CreditBalance, CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        _db.Jobs.Add(job);
+        await _db.SaveChangesAsync();
+        await subscriptions.IncrementUsageAsync(userId);
+
+        await _queue.EnqueueMasteringJobAsync(new MasteringJobMessage
+        {
+            JobId = job.Id, UserId = userId, InputS3Key = file.S3Key,
+            OutputBucket = ProcessedBucket, Preset = presetStr,
+            Quality = quality.ToString(), UserPlan = user.Plan.ToString(),
+            LoudnessTarget = request.LoudnessTarget, CustomLufs = request.CustomLufs,
+            LowEq = request.LowEq, MidEq = request.MidEq, HighEq = request.HighEq,
+            DeBreath = request.DeBreath, DeNoise = request.DeNoise, DeEss = request.DeEss,
+            AttemptCount = 0, EnqueuedAt = DateTime.UtcNow
+        }, user.Plan);
+
+        return Created($"/api/v1/jobs/{job.Id}", MapToResponse(job));
+    }
+
     private static JobResponse MapToResponse(Job j) => new(
         j.Id, j.Status.ToString(), j.Preset.ToString(), j.Quality.ToString(),
         j.Progress, j.ErrorMessage, j.EstimatedDurationSec, j.MasteringSettings,
