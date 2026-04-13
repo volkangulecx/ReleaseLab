@@ -103,32 +103,8 @@ public class UploadController : ControllerBase
         if (request.Checksum is not null)
             file.ChecksumSha256 = request.Checksum;
 
-        // Try to detect audio duration via analysis service
-        try
-        {
-            var analysis = HttpContext.RequestServices.GetService<IAudioAnalysisService>();
-            if (analysis is not null)
-            {
-                var minio = HttpContext.RequestServices.GetRequiredService<Minio.IMinioClient>();
-                var tempPath = Path.Combine(Path.GetTempPath(), "releaselab-probe", $"{file.Id}{Path.GetExtension(file.S3Key)}");
-                Directory.CreateDirectory(Path.GetDirectoryName(tempPath)!);
-
-                await minio.GetObjectAsync(new Minio.DataModel.Args.GetObjectArgs()
-                    .WithBucket(RawBucket)
-                    .WithObject(file.S3Key)
-                    .WithCallbackStream(async (stream, ct) =>
-                    {
-                        using var fs = System.IO.File.Create(tempPath);
-                        await stream.CopyToAsync(fs, ct);
-                    }));
-
-                var result = await analysis.AnalyzeAsync(tempPath);
-                file.DurationSec = (int)Math.Round(result.DurationSeconds);
-
-                try { System.IO.File.Delete(tempPath); } catch { }
-            }
-        }
-        catch { /* Duration detection is best-effort */ }
+        // Duration detection removed from upload complete to prevent hang.
+        // Duration is detected by the worker during processing instead.
 
         await _db.SaveChangesAsync();
 

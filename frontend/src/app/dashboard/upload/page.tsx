@@ -125,22 +125,30 @@ export default function UploadPage() {
     setUploadProgress(0);
 
     try {
+      console.log("[Upload] Step 1: init...");
       const { data: initData } = await uploadApi.init(f.name, f.size, contentType);
+      console.log("[Upload] Step 1 OK, fileId:", initData.fileId);
 
+      console.log("[Upload] Step 2: S3 PUT...");
       await axios.put(initData.uploadUrl, f, {
         headers: { "Content-Type": contentType },
         onUploadProgress: (e) => {
           if (e.total) setUploadProgress(Math.round((e.loaded / e.total) * 100));
         },
       });
+      console.log("[Upload] Step 2 OK");
 
+      console.log("[Upload] Step 3: complete...");
       await uploadApi.complete(initData.fileId);
+      console.log("[Upload] Step 3 OK");
 
       setFileId(initData.fileId);
       setStep("preset");
       toast.success("File uploaded!");
     } catch (err: any) {
-      toast.error(err.response?.data?.message || "Upload failed");
+      console.error("[Upload] FAILED:", err, err?.response?.status, err?.response?.data);
+      const msg = err?.response?.data?.message || err?.message || "Upload failed";
+      toast.error(msg);
       setFile(null);
     } finally {
       setUploading(false);
