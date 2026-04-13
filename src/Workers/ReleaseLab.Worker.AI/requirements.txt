@@ -10,3 +10,4 @@ soundfile==0.12.1
 pydub==0.25.1
 fastapi==0.104.1
 uvicorn==0.24.0
+matchering==2.0.6

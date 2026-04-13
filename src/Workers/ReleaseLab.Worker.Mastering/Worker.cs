@@ -150,8 +150,9 @@ public class MasteringWorker : BackgroundService
                 JobId = job.Id, Progress = 25, Stage = "processing"
             });
 
-            // Build FFmpeg filter chain based on preset
-            var filterChain = BuildFilterChain(message);
+            // Build professional mastering chain
+            var filterChain = ProMasteringChain.Build(message);
+            _logger.LogInformation("Filter chain ({Length} chars): {Chain}", filterChain.Length, filterChain[..Math.Min(200, filterChain.Length)]);
             var isHiRes = string.Equals(message.Quality, "HiRes", StringComparison.OrdinalIgnoreCase);
 
             // Process master WAV (44100Hz, full quality)
