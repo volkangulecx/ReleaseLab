@@ -22,6 +22,7 @@ interface Job {
   quality: string;
   progress: number;
   errorMessage: string | null;
+  masteringSettings: string | null;
   createdAt: string;
   finishedAt: string | null;
 }
@@ -274,6 +275,40 @@ export default function JobDetailPage() {
             </div>
           </div>
         )}
+
+        {/* Mastering Chain Details */}
+        {isDone && job.masteringSettings && (() => {
+          try {
+            const settings = JSON.parse(job.masteringSettings);
+            return (
+              <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-6 mb-6">
+                <p className="text-[13px] font-medium text-zinc-400 mb-4">Processing Chain</p>
+
+                {/* Stages flow */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(settings.stages || ["cleanup", "eq", "compression", "stereo", "loudnorm", "limiter"]).map((s: string) => (
+                    <span key={s} className="px-2.5 py-1 rounded-md bg-zinc-800/60 text-zinc-300 text-xs font-medium capitalize">
+                      {s}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Key settings */}
+                <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs text-zinc-500">
+                  <span>Preset: <span className="text-zinc-300">{settings.preset}</span></span>
+                  <span>Target: <span className="text-zinc-300">{settings.targetLufs} LUFS</span></span>
+                  <span>Platform: <span className="text-zinc-300 capitalize">{settings.loudnessTarget || "default"}</span></span>
+                  {settings.deBreath && <span className="text-violet-400">De-Breath</span>}
+                  {settings.deNoise && <span className="text-violet-400">De-Noise</span>}
+                  {settings.deEss && <span className="text-violet-400">De-Ess</span>}
+                  {settings.customEq && (settings.customEq.low !== 0 || settings.customEq.mid !== 0 || settings.customEq.high !== 0) && (
+                    <span>EQ: <span className="text-zinc-300">L{settings.customEq.low > 0 ? "+" : ""}{settings.customEq.low} M{settings.customEq.mid > 0 ? "+" : ""}{settings.customEq.mid} H{settings.customEq.high > 0 ? "+" : ""}{settings.customEq.high}</span></span>
+                  )}
+                </div>
+              </div>
+            );
+          } catch { return null; }
+        })()}
 
         {/* Failed */}
         {isFailed && (

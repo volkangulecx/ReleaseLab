@@ -1,32 +1,81 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Check, ChevronDown, Loader2, RotateCcw, X } from "lucide-react";
 import { uploadApi, jobsApi } from "@/lib/api";
 import axios from "axios";
 
+const PROCESSING_CHAIN = [
+  { order: 1, name: "Cleanup" },
+  { order: 2, name: "EQ" },
+  { order: 3, name: "Compress" },
+  { order: 4, name: "Stereo" },
+  { order: 5, name: "Loudnorm" },
+  { order: 6, name: "Limiter" },
+];
+
 const STANDARD_PRESETS = [
   {
     id: "Warm",
     label: "Warm",
     desc: "Smooth, rich low-mids. Great for R&B, Soul, Jazz.",
+    targetLufs: -14,
+    stereo: 1.0,
+    lra: 10,
+    eq: [
+      { freq: 60, gain: 2 },
+      { freq: 250, gain: 3 },
+      { freq: 1000, gain: 0 },
+      { freq: 4000, gain: -1 },
+      { freq: 12000, gain: -2 },
+    ],
   },
   {
     id: "Bright",
     label: "Bright",
     desc: "Crisp highs and clear presence. Pop, Indie, Acoustic.",
+    targetLufs: -14,
+    stereo: 1.1,
+    lra: 9,
+    eq: [
+      { freq: 60, gain: 0 },
+      { freq: 250, gain: -1 },
+      { freq: 1000, gain: 1 },
+      { freq: 4000, gain: 3 },
+      { freq: 12000, gain: 4 },
+    ],
   },
   {
     id: "Loud",
     label: "Loud",
     desc: "Maximum punch and energy. EDM, Hip-Hop, Rock.",
+    targetLufs: -9,
+    stereo: 1.2,
+    lra: 6,
+    eq: [
+      { freq: 60, gain: 3 },
+      { freq: 250, gain: 1 },
+      { freq: 1000, gain: 2 },
+      { freq: 4000, gain: 2 },
+      { freq: 12000, gain: 1 },
+    ],
   },
   {
     id: "Balanced",
     label: "Balanced",
     desc: "Natural, transparent mastering. Works with anything.",
+    targetLufs: -14,
+    stereo: 1.0,
+    lra: 10,
+    eq: [
+      { freq: 60, gain: 0 },
+      { freq: 250, gain: 0 },
+      { freq: 1000, gain: 0 },
+      { freq: 4000, gain: 0 },
+      { freq: 12000, gain: 0 },
+    ],
   },
 ];
 
@@ -35,31 +84,91 @@ const GENRE_PRESETS = [
     id: "hiphop",
     label: "Hip-Hop",
     desc: "Heavy low-end, punchy drums, crisp vocals.",
+    targetLufs: -11,
+    stereo: 1.1,
+    lra: 7,
+    eq: [
+      { freq: 60, gain: 4 },
+      { freq: 250, gain: 2 },
+      { freq: 1000, gain: -1 },
+      { freq: 4000, gain: 2 },
+      { freq: 12000, gain: 1 },
+    ],
   },
   {
     id: "edm",
     label: "EDM",
     desc: "Loud, wide stereo, tight sub-bass, bright leads.",
+    targetLufs: -8,
+    stereo: 1.3,
+    lra: 5,
+    eq: [
+      { freq: 60, gain: 3 },
+      { freq: 250, gain: -1 },
+      { freq: 1000, gain: 1 },
+      { freq: 4000, gain: 3 },
+      { freq: 12000, gain: 2 },
+    ],
   },
   {
     id: "jazz",
     label: "Jazz",
     desc: "Warm dynamics, natural room, instrument clarity.",
+    targetLufs: -16,
+    stereo: 1.05,
+    lra: 12,
+    eq: [
+      { freq: 60, gain: 1 },
+      { freq: 250, gain: 2 },
+      { freq: 1000, gain: 0 },
+      { freq: 4000, gain: -1 },
+      { freq: 12000, gain: -1 },
+    ],
   },
   {
     id: "classical",
     label: "Classical",
     desc: "Transparent, wide dynamic range, natural tonality.",
+    targetLufs: -18,
+    stereo: 1.0,
+    lra: 14,
+    eq: [
+      { freq: 60, gain: 0 },
+      { freq: 250, gain: 0 },
+      { freq: 1000, gain: 0 },
+      { freq: 4000, gain: 1 },
+      { freq: 12000, gain: 0 },
+    ],
   },
   {
     id: "pop",
     label: "Pop",
     desc: "Balanced brightness, polished vocals, radio-ready.",
+    targetLufs: -14,
+    stereo: 1.15,
+    lra: 8,
+    eq: [
+      { freq: 60, gain: 1 },
+      { freq: 250, gain: 0 },
+      { freq: 1000, gain: 1 },
+      { freq: 4000, gain: 2 },
+      { freq: 12000, gain: 2 },
+    ],
   },
   {
     id: "rock",
     label: "Rock",
     desc: "Gritty mids, punchy drums, full guitar presence.",
+    targetLufs: -11,
+    stereo: 1.1,
+    lra: 8,
+    eq: [
+      { freq: 60, gain: 2 },
+      { freq: 250, gain: 1 },
+      { freq: 1000, gain: 3 },
+      { freq: 4000, gain: 1 },
+      { freq: 12000, gain: 0 },
+    ],
   },
 ];
 
@@ -78,6 +187,65 @@ const LOUDNESS_TARGETS = [
 
 type Step = "upload" | "preset" | "processing";
 type PresetTab = "standard" | "genre";
+
+function formatFreq(freq: number): string {
+  return freq >= 1000 ? `${freq / 1000}k` : `${freq}`;
+}
+
+function EqVisualization({ eq }: { eq: { freq: number; gain: number }[] }) {
+  const maxGain = 6;
+  const barHeight = 48;
+  const centerY = barHeight / 2;
+
+  return (
+    <div className="flex items-end justify-center gap-3 py-2">
+      {eq.map((band, i) => {
+        const clampedGain = Math.max(-maxGain, Math.min(maxGain, band.gain));
+        const height = Math.abs(clampedGain) * (centerY / maxGain);
+        const isPositive = clampedGain >= 0;
+
+        return (
+          <div key={i} className="flex flex-col items-center gap-1">
+            <div className="relative" style={{ width: 24, height: barHeight }}>
+              {/* Center line */}
+              <div
+                className="absolute left-0 right-0 h-px bg-zinc-700"
+                style={{ top: centerY }}
+              />
+              {/* Bar */}
+              {clampedGain !== 0 && (
+                <div
+                  className={`absolute left-1 right-1 rounded-sm ${
+                    isPositive ? "bg-violet-500/70" : "bg-red-500/60"
+                  }`}
+                  style={{
+                    top: isPositive ? centerY - height : centerY,
+                    height: Math.max(height, 2),
+                  }}
+                />
+              )}
+            </div>
+            <span className="text-[9px] text-zinc-500 font-mono">
+              {formatFreq(band.freq)}
+            </span>
+            <span
+              className={`text-[9px] font-mono ${
+                clampedGain > 0
+                  ? "text-violet-400"
+                  : clampedGain < 0
+                    ? "text-red-400"
+                    : "text-zinc-600"
+              }`}
+            >
+              {clampedGain > 0 ? "+" : ""}
+              {clampedGain}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function UploadPage() {
   const router = useRouter();
@@ -108,6 +276,16 @@ export default function UploadPage() {
   const [deNoise, setDeNoise] = useState(false);
   const [deEss, setDeEss] = useState(false);
   const [highEq, setHighEq] = useState(0);
+
+  const allPresets = useMemo(
+    () => [...STANDARD_PRESETS, ...GENRE_PRESETS],
+    []
+  );
+
+  const selectedPreset = useMemo(
+    () => allPresets.find((p) => p.id === preset) || STANDARD_PRESETS[3],
+    [preset, allPresets]
+  );
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -349,7 +527,7 @@ export default function UploadPage() {
           </div>
 
           {/* Preset cards */}
-          <div className={`grid gap-3 mb-8 ${presetTab === "genre" ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className={`grid gap-3 mb-4 ${presetTab === "genre" ? "grid-cols-3" : "grid-cols-2"}`}>
             {activePresets.map((p) => {
               const isSelected = preset === p.id;
               return (
@@ -369,6 +547,40 @@ export default function UploadPage() {
                 </button>
               );
             })}
+          </div>
+
+          {/* EQ Curve Visualization */}
+          <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-lg p-3 mb-4">
+            <p className="text-[11px] font-medium text-zinc-500 mb-1 text-center">
+              EQ Curve &middot; {selectedPreset.label}
+            </p>
+            <EqVisualization eq={selectedPreset.eq} />
+          </div>
+
+          {/* Mastering Preview Card */}
+          <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-xl p-4 mb-8">
+            <p className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-3">
+              Processing Chain
+            </p>
+            <div className="flex flex-wrap items-center gap-1.5 mb-3">
+              {PROCESSING_CHAIN.map((stage, i) => (
+                <span key={stage.order} className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 rounded-full bg-zinc-800/80 text-[11px] font-medium text-zinc-300">
+                    {stage.name}
+                  </span>
+                  {i < PROCESSING_CHAIN.length - 1 && (
+                    <span className="text-zinc-700 text-[10px]">&rarr;</span>
+                  )}
+                </span>
+              ))}
+            </div>
+            <p className="text-[12px] text-zinc-500">
+              Target: <span className="text-zinc-300 font-mono">{selectedPreset.targetLufs} LUFS</span>
+              <span className="mx-1.5">&middot;</span>
+              LRA: <span className="text-zinc-300 font-mono">{selectedPreset.lra}</span>
+              <span className="mx-1.5">&middot;</span>
+              Stereo: <span className="text-zinc-300 font-mono">{selectedPreset.stereo}x</span>
+            </p>
           </div>
 
           {/* Quality */}
