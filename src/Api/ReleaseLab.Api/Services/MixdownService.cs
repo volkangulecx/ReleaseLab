@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using ReleaseLab.Infrastructure.Data;
 
@@ -75,7 +76,8 @@ public class MixdownService
             {
                 // Single track — just apply volume
                 var (path, vol, _) = trackPaths[0];
-                await RunFFmpeg($"-y -i \"{path}\" -af \"volume={vol:F2}\" -ar 44100 \"{outputPath}\"", ct);
+                var volStr = vol.ToString("F2", CultureInfo.InvariantCulture);
+                await RunFFmpeg($"-y -i \"{path}\" -af \"volume={volStr}\" -ar 44100 \"{outputPath}\"", ct);
             }
             else
             {
@@ -86,7 +88,8 @@ public class MixdownService
                 for (int i = 0; i < trackPaths.Count; i++)
                 {
                     var (_, vol, _) = trackPaths[i];
-                    filters.Add($"[{i}:a]volume={vol:F2}[v{i}]");
+                    var volStr = vol.ToString("F2", CultureInfo.InvariantCulture);
+                    filters.Add($"[{i}:a]volume={volStr}[v{i}]");
                 }
 
                 var mixInputs = string.Join("", Enumerable.Range(0, trackPaths.Count).Select(i => $"[v{i}]"));
@@ -218,7 +221,11 @@ public class MixdownService
         var stderr = await stderrTask;
 
         if (process.ExitCode != 0)
-            throw new InvalidOperationException($"FFmpeg mixdown failed: {stderr[..Math.Min(500, stderr.Length)]}");
+        {
+            // Get last 500 chars of stderr (actual error is at the end, not version info at start)
+            var errorPart = stderr.Length > 500 ? stderr[^500..] : stderr;
+            throw new InvalidOperationException($"FFmpeg exit {process.ExitCode}: {errorPart}");
+        }
     }
 
     private async Task<double> GetRmsLoudness(string filePath, CancellationToken ct)
