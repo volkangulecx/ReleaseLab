@@ -170,29 +170,33 @@ public class AudioRecommendationService
 
     private async Task<SpectrumAnalysis> AnalyzeSpectrum(string path, CancellationToken ct)
     {
-        // Use FFmpeg astats to get frequency distribution
-        var stderr = await RunFFmpeg($"-i \"{path}\" -af \"asplit=3[low][mid][high];[low]lowpass=f=300,astats=metadata=1:reset=1[lo];[mid]bandpass=f=2000:width_type=h:width=4000,astats=metadata=1:reset=1[mi];[high]highpass=f=6000,astats=metadata=1:reset=1[hi]\" -map \"[lo]\" -map \"[mi]\" -map \"[hi]\" -f null -", ct);
+        // Run 3 separate simple FFmpeg calls instead of complex multi-output filter
+        var lowTask = GetBandRms(path, "lowpass=f=300", ct);
+        var midTask = GetBandRms(path, "bandpass=f=2000:width_type=h:width=4000", ct);
+        var highTask = GetBandRms(path, "highpass=f=6000", ct);
 
-        // Parse RMS levels from different bands
-        var rmsValues = Regex.Matches(stderr, @"RMS level dB:\s*(-?\d+\.?\d*)");
-        var levels = rmsValues.Select(m => double.Parse(m.Groups[1].Value, CultureInfo.InvariantCulture)).ToList();
+        await Task.WhenAll(lowTask, midTask, highTask);
+
+        var lowDb = await lowTask;
+        var midDb = await midTask;
+        var highDb = await highTask;
+
+        // Convert dB to linear energy ratios
+        var lowLin = Math.Pow(10, lowDb / 20.0);
+        var midLin = Math.Pow(10, midDb / 20.0);
+        var highLin = Math.Pow(10, highDb / 20.0);
+        var total = lowLin + midLin + highLin;
 
         double lowE = 0.33, midE = 0.33, highE = 0.33;
-        if (levels.Count >= 3)
+        if (total > 0)
         {
-            var total = levels.Select(l => Math.Pow(10, l / 20.0)).Sum();
-            if (total > 0)
-            {
-                lowE = Math.Pow(10, levels[0] / 20.0) / total;
-                midE = Math.Pow(10, levels[1] / 20.0) / total;
-                highE = Math.Pow(10, levels[2] / 20.0) / total;
-            }
+            lowE = lowLin / total;
+            midE = midLin / total;
+            highE = highLin / total;
         }
 
-        // Check sibilance (4-10kHz)
-        var sibilanceSterr = await RunFFmpeg($"-i \"{path}\" -af \"bandpass=f=7000:width_type=h:width=6000,astats=metadata=1:reset=1\" -f null -", ct);
-        var sibMatch = Regex.Match(sibilanceSterr, @"RMS level dB:\s*(-?\d+\.?\d*)");
-        var sibLevel = sibMatch.Success ? double.Parse(sibMatch.Groups[1].Value, CultureInfo.InvariantCulture) : -60;
+        // Sibilance check (simplified — use high energy as proxy)
+        var sibLevel = highDb + 10; // sibilance correlates with high frequency energy
 
         return new SpectrumAnalysis
         {
@@ -201,6 +205,13 @@ public class AudioRecommendationService
             HighEnergy = highE,
             SibilanceEnergy = Math.Pow(10, sibLevel / 20.0),
         };
+    }
+
+    private async Task<double> GetBandRms(string path, string filter, CancellationToken ct)
+    {
+        var stderr = await RunFFmpeg($"-i \"{path}\" -af \"{filter},volumedetect\" -f null -", ct);
+        var match = Regex.Match(stderr, @"mean_volume:\s*(-?\d+\.?\d*)\s*dB");
+        return match.Success ? double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : -40;
     }
 
     private async Task<DynamicsAnalysis> AnalyzeDynamics(string path, CancellationToken ct)
@@ -423,9 +434,26 @@ public class AudioRecommendationService
             }
         };
         process.Start();
-        var stdout = await process.StandardOutput.ReadToEndAsync(ct);
-        var stderr = await process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+
+        // Read both streams async BEFORE waiting (prevents deadlock)
+        var stdoutTask = process.StandardOutput.ReadToEndAsync(ct);
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(60));
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            try { process.Kill(true); } catch { }
+            throw new TimeoutException($"Process timed out: {fileName}");
+        }
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
         return readStdout ? stdout : stderr;
     }
 
