@@ -40,14 +40,19 @@ public class MixdownService
         var soloTracks = activeTracks.Where(t => t.Solo).ToList();
         if (soloTracks.Count > 0) activeTracks = soloTracks;
 
-        var tempDir = Path.Combine(Path.GetTempPath(), "releaselab-mix", projectId.ToString());
+        // Use unique temp dir per export attempt to avoid file lock issues
+        var tempDir = Path.Combine(Path.GetTempPath(), "releaselab-mix", $"{projectId}-{DateTime.UtcNow.Ticks}");
+        try { Directory.Delete(tempDir, true); } catch { }
         Directory.CreateDirectory(tempDir);
         var outputPath = Path.Combine(tempDir, "mixdown.wav");
 
         try
         {
+            // Reset status for re-export
             project.Status = "mixing";
             project.Progress = 10;
+            project.ErrorMessage = null;
+            project.OutputS3Key = null;
             await db.SaveChangesAsync(ct);
 
             // Download all tracks using WithFile (not WithCallbackStream — that hangs)
