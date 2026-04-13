@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
-using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Infrastructure.Data;
 
 namespace ReleaseLab.Api.Services;
@@ -9,13 +8,13 @@ public class MixdownService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<MixdownService> _logger;
-    private readonly IConfiguration _config;
+    private readonly string _ffmpegPath;
 
     public MixdownService(IServiceScopeFactory scopeFactory, ILogger<MixdownService> logger, IConfiguration config)
     {
         _scopeFactory = scopeFactory;
         _logger = logger;
-        _config = config;
+        _ffmpegPath = config["FFmpeg:Path"] ?? "ffmpeg";
     }
 
     public async Task<string> ExportMixdownAsync(Guid projectId, Guid userId, CancellationToken ct = default)
@@ -37,7 +36,6 @@ public class MixdownService
 
         if (activeTracks.Count == 0) throw new InvalidOperationException("No active tracks to mix");
 
-        // Check solo — if any track is solo'd, only include solo'd tracks
         var soloTracks = activeTracks.Where(t => t.Solo).ToList();
         if (soloTracks.Count > 0) activeTracks = soloTracks;
 
@@ -51,7 +49,7 @@ public class MixdownService
             project.Progress = 10;
             await db.SaveChangesAsync(ct);
 
-            // Download all tracks
+            // Download all tracks using WithFile (not WithCallbackStream — that hangs)
             var trackPaths = new List<(string path, double volume, double pan)>();
             for (int i = 0; i < activeTracks.Count; i++)
             {
@@ -64,42 +62,44 @@ public class MixdownService
                     .WithFile(localPath), ct);
 
                 trackPaths.Add((localPath, track.Volume, track.Pan));
+                _logger.LogInformation("Downloaded track {Index}: {Key} ({Volume}, pan {Pan})", i, track.File.S3Key, track.Volume, track.Pan);
             }
 
             project.Progress = 40;
             await db.SaveChangesAsync(ct);
 
-            // Build FFmpeg complex filter for mixing
-            var ffmpegArgs = BuildMixdownArgs(trackPaths, outputPath);
-            var ffmpegPath = _config["FFmpeg:Path"] ?? "ffmpeg";
-
+            // Build and run FFmpeg
             _logger.LogInformation("Mixdown: {TrackCount} tracks for project {ProjectId}", activeTracks.Count, projectId);
 
-            var process = new Process
+            if (activeTracks.Count == 1)
             {
-                StartInfo = new ProcessStartInfo
+                // Single track — just apply volume
+                var (path, vol, _) = trackPaths[0];
+                await RunFFmpeg($"-y -i \"{path}\" -af \"volume={vol:F2}\" -ar 44100 \"{outputPath}\"", ct);
+            }
+            else
+            {
+                // Multi-track — simple amix with volume pre-adjustment
+                var inputs = string.Join(" ", trackPaths.Select((t, i) => $"-i \"{t.path}\""));
+                var filters = new List<string>();
+
+                for (int i = 0; i < trackPaths.Count; i++)
                 {
-                    FileName = ffmpegPath,
-                    Arguments = ffmpegArgs,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
+                    var (_, vol, _) = trackPaths[i];
+                    filters.Add($"[{i}:a]volume={vol:F2}[v{i}]");
                 }
-            };
 
-            process.Start();
-            var stderrTask = process.StandardError.ReadToEndAsync(ct);
-            await process.WaitForExitAsync(ct);
-            var stderr = await stderrTask;
+                var mixInputs = string.Join("", Enumerable.Range(0, trackPaths.Count).Select(i => $"[v{i}]"));
+                filters.Add($"{mixInputs}amix=inputs={trackPaths.Count}:duration=longest[out]");
 
-            if (process.ExitCode != 0)
-                throw new InvalidOperationException($"FFmpeg mixdown failed: {stderr[..Math.Min(500, stderr.Length)]}");
+                var filterComplex = string.Join(";", filters);
+                await RunFFmpeg($"-y {inputs} -filter_complex \"{filterComplex}\" -map \"[out]\" -ar 44100 \"{outputPath}\"", ct);
+            }
 
             project.Progress = 80;
             await db.SaveChangesAsync(ct);
 
-            // Upload result
+            // Upload
             var outputBucket = "releaselab-processed";
             var outputKey = $"{userId}/{projectId}/mixdown.wav";
 
@@ -123,8 +123,9 @@ public class MixdownService
         }
         catch (Exception ex)
         {
+            _logger.LogError(ex, "Mixdown failed: {ProjectId}", projectId);
             project.Status = "failed";
-            project.ErrorMessage = ex.Message;
+            project.ErrorMessage = ex.Message[..Math.Min(500, ex.Message.Length)];
             project.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(CancellationToken.None);
             throw;
@@ -133,30 +134,6 @@ public class MixdownService
         {
             try { Directory.Delete(tempDir, true); } catch { }
         }
-    }
-
-    private static string BuildMixdownArgs(List<(string path, double volume, double pan)> tracks, string output)
-    {
-        // Build FFmpeg command for multi-track mixing
-        // Each track: adjust volume → adjust pan → feed to amix
-        var inputs = string.Join(" ", tracks.Select((t, i) => $"-i \"{t.path}\""));
-        var filters = new List<string>();
-
-        for (int i = 0; i < tracks.Count; i++)
-        {
-            var (_, volume, pan) = tracks[i];
-            // Volume: 0-2 range → FFmpeg volume filter
-            // Pan: -1 to 1 → stereopan (left/right balance)
-            var panL = Math.Clamp(1.0 - pan, 0, 2) / 2;
-            var panR = Math.Clamp(1.0 + pan, 0, 2) / 2;
-            filters.Add($"[{i}:a]volume={volume:F2},pan=stereo|c0={panL:F2}*c0+{panL:F2}*c1|c1={panR:F2}*c0+{panR:F2}*c1[t{i}]");
-        }
-
-        var mixInputs = string.Join("", tracks.Select((_, i) => $"[t{i}]"));
-        filters.Add($"{mixInputs}amix=inputs={tracks.Count}:duration=longest:normalize=0[out]");
-
-        var filterComplex = string.Join(";", filters);
-        return $"-y {inputs} -filter_complex \"{filterComplex}\" -map \"[out]\" -ar 44100 \"{output}\"";
     }
 
     public async Task AutoMixAsync(Guid projectId, Guid userId, CancellationToken ct = default)
@@ -172,7 +149,6 @@ public class MixdownService
         if (project is null) throw new KeyNotFoundException("Project not found");
         if (project.Tracks.Count == 0) throw new InvalidOperationException("No tracks to auto-mix");
 
-        // Analyze each track's RMS loudness and auto-balance
         var tempDir = Path.Combine(Path.GetTempPath(), "releaselab-automix", projectId.ToString());
         Directory.CreateDirectory(tempDir);
 
@@ -192,7 +168,6 @@ public class MixdownService
                 trackLoudness.Add((track, rmsDb));
             }
 
-            // Target: -18 dBFS average
             const double targetRms = -18.0;
             foreach (var (track, rmsDb) in trackLoudness)
             {
@@ -201,7 +176,6 @@ public class MixdownService
                 track.Volume = Math.Clamp(newVolume, 0.1, 2.0);
             }
 
-            // Auto-pan: spread tracks evenly across stereo field
             var count = project.Tracks.Count;
             var orderedTracks = project.Tracks.OrderBy(t => t.OrderIndex).ToList();
             for (int i = 0; i < count; i++)
@@ -211,7 +185,6 @@ public class MixdownService
 
             project.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
-            _logger.LogInformation("Auto-mix applied to project {ProjectId}: {TrackCount} tracks balanced", projectId, count);
         }
         finally
         {
@@ -219,16 +192,45 @@ public class MixdownService
         }
     }
 
-    private async Task<double> GetRmsLoudness(string filePath, CancellationToken ct)
+    private async Task RunFFmpeg(string args, CancellationToken ct)
     {
-        var ffmpegPath = _config["FFmpeg:Path"] ?? "ffmpeg";
         var process = new Process
         {
             StartInfo = new ProcessStartInfo
             {
-                FileName = ffmpegPath,
+                FileName = _ffmpegPath,
+                Arguments = args,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            }
+        };
+
+        process.Start();
+        var stderrTask = process.StandardError.ReadToEndAsync(ct);
+        await process.StandardOutput.ReadToEndAsync(ct);
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeoutCts.CancelAfter(TimeSpan.FromMinutes(10));
+
+        await process.WaitForExitAsync(timeoutCts.Token);
+        var stderr = await stderrTask;
+
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"FFmpeg mixdown failed: {stderr[..Math.Min(500, stderr.Length)]}");
+    }
+
+    private async Task<double> GetRmsLoudness(string filePath, CancellationToken ct)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = _ffmpegPath,
                 Arguments = $"-i \"{filePath}\" -af volumedetect -f null -",
                 RedirectStandardError = true,
+                RedirectStandardOutput = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
             }
