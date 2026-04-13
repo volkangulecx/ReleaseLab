@@ -13,8 +13,10 @@ import {
   Copy,
   Music2,
   Calendar,
+  Search,
+  X as XIcon,
 } from "lucide-react";
-import { mixApi, uploadApi } from "@/lib/api";
+import { mixApi, uploadApi, recommendApi } from "@/lib/api";
 import axios from "axios";
 
 /* ── Types ──────────────────────────────────────────── */
@@ -352,6 +354,21 @@ function ChannelStrip({
 
 /* ── Main Page ──────────────────────────────────────── */
 
+interface MixingTrackRecommendation {
+  name: string;
+  role: string;
+  meanLoudness: number;
+  recommendedVolume: number;
+  recommendedPan: number;
+  recommendedEqPreset: string;
+  frequencyBalance: { low: number; mid: number; high: number };
+}
+
+interface MixingRecommendation {
+  tracks: MixingTrackRecommendation[];
+  summary: string;
+}
+
 export default function MixingPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -365,6 +382,9 @@ export default function MixingPage() {
   const [autoMixing, setAutoMixing] = useState(false);
   const [duplicating, setDuplicating] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [analyzingMix, setAnalyzingMix] = useState(false);
+  const [mixRecommendation, setMixRecommendation] = useState<MixingRecommendation | null>(null);
+  const [showMixRecommendation, setShowMixRecommendation] = useState(false);
 
   /* ── Fetch projects ── */
   const fetchProjects = useCallback(async () => {
@@ -574,6 +594,49 @@ export default function MixingPage() {
     }
   };
 
+  /* ── Analyze Tracks ── */
+  const handleAnalyzeTracks = async () => {
+    if (!selectedProject) return;
+    setAnalyzingMix(true);
+    try {
+      const { data } = await recommendApi.mixing(selectedProject.id);
+      setMixRecommendation(data);
+      setShowMixRecommendation(true);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Analysis failed");
+    } finally {
+      setAnalyzingMix(false);
+    }
+  };
+
+  const applyMixRecommendations = async () => {
+    if (!selectedProject || !mixRecommendation) return;
+    const tracks = selectedProject.tracks || [];
+    try {
+      for (const rec of mixRecommendation.tracks) {
+        const track = tracks.find((t) => t.name.toLowerCase() === rec.name.toLowerCase());
+        if (track) {
+          const eqPreset = DEFAULT_EQ_PRESETS.find((p) => p.id === rec.recommendedEqPreset);
+          const updateData: Partial<Track> = {
+            volume: rec.recommendedVolume,
+            pan: rec.recommendedPan,
+          };
+          if (eqPreset) {
+            updateData.eqPreset = eqPreset.id;
+            updateData.lowGain = eqPreset.low;
+            updateData.midGain = eqPreset.mid;
+            updateData.highGain = eqPreset.high;
+          }
+          await handleUpdateTrack(track.id, updateData);
+        }
+      }
+      setShowMixRecommendation(false);
+      toast.success("Mix recommendations applied!");
+    } catch {
+      toast.error("Failed to apply recommendations");
+    }
+  };
+
   /* ════════════════════════════════════════════════════
      VIEW 2: MIXER
      ════════════════════════════════════════════════════ */
@@ -609,6 +672,18 @@ export default function MixingPage() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleAnalyzeTracks}
+              disabled={analyzingMix || tracks.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg text-[13px] font-medium bg-zinc-900/50 border border-violet-500/30 text-violet-300 hover:text-violet-200 hover:border-violet-500/50 transition-colors disabled:opacity-40"
+            >
+              {analyzingMix ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Search className="w-3.5 h-3.5" />
+              )}
+              {analyzingMix ? "Analyzing..." : "Analyze Tracks"}
+            </button>
             <button
               onClick={handleAutoMix}
               disabled={autoMixing || tracks.length === 0}
@@ -703,6 +778,83 @@ export default function MixingPage() {
                 )}
                 {uploadingTrack ? "Uploading..." : "Add Track"}
               </button>
+            </div>
+          </div>
+        )}
+
+
+        {/* Mix Recommendation Modal */}
+        {showMixRecommendation && mixRecommendation && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+            <div className="bg-zinc-950 border border-zinc-800 rounded-2xl p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[15px] font-semibold text-white">Track Analysis</h3>
+                <button
+                  onClick={() => setShowMixRecommendation(false)}
+                  className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-[12px] text-zinc-400 mb-5 leading-relaxed">{mixRecommendation.summary}</p>
+
+              <div className="space-y-3 mb-5">
+                {mixRecommendation.tracks.map((rec, i) => (
+                  <div key={i} className="bg-zinc-900/70 border border-zinc-800/50 rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[13px] font-medium text-zinc-200">{rec.name}</span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400 font-medium capitalize">{rec.role}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-[11px] mb-3">
+                      <div>
+                        <span className="text-zinc-500">Volume</span>
+                        <p className="text-zinc-300 font-mono">{Math.round(rec.recommendedVolume * 100)}%</p>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500">Pan</span>
+                        <p className="text-zinc-300 font-mono">{rec.recommendedPan === 0 ? "C" : rec.recommendedPan < 0 ? `${Math.abs(Math.round(rec.recommendedPan * 100))}L` : `${Math.round(rec.recommendedPan * 100)}R`}</p>
+                      </div>
+                      <div>
+                        <span className="text-zinc-500">EQ Preset</span>
+                        <p className="text-zinc-300 font-mono capitalize">{rec.recommendedEqPreset || "None"}</p>
+                      </div>
+                    </div>
+                    {/* Freq balance bars */}
+                    <div className="space-y-1">
+                      {(["low", "mid", "high"] as const).map((band) => {
+                        const colors = { low: "#10b981", mid: "#f59e0b", high: "#3b82f6" };
+                        const val = rec.frequencyBalance[band];
+                        return (
+                          <div key={band} className="flex items-center gap-2">
+                            <span className="text-[10px] text-zinc-500 w-6 font-mono capitalize">{band[0].toUpperCase()}</span>
+                            <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${val}%`, backgroundColor: colors[band] }} />
+                            </div>
+                            <span className="text-[10px] text-zinc-500 w-6 text-right font-mono">{val}%</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={applyMixRecommendations}
+                  className="flex-1 py-2.5 rounded-lg font-medium text-[13px] text-zinc-950 transition-all"
+                  style={{ background: "linear-gradient(135deg, #c4b5fd, #a78bfa)" }}
+                >
+                  Apply All Recommendations
+                </button>
+                <button
+                  onClick={() => setShowMixRecommendation(false)}
+                  className="text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-2.5"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -129,6 +129,12 @@ export const releaseApi = {
   submit: (id: string) => api.post(`/api/v1/releases/${id}/submit`),
 };
 
+// Recommendations
+export const recommendApi = {
+  mastering: (fileId: string) => api.post(`/api/v1/recommend/mastering/${fileId}`),
+  mixing: (projectId: string) => api.post(`/api/v1/recommend/mixing/${projectId}`),
+};
+
 // Presets
 export const presetsApi = {
   all: () => api.get("/api/v1/presets/all"),

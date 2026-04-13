@@ -3,8 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Check, ChevronDown, Loader2, RotateCcw, X } from "lucide-react";
-import { uploadApi, jobsApi } from "@/lib/api";
+import { Check, ChevronDown, Loader2, RotateCcw, X, Search } from "lucide-react";
+import { uploadApi, jobsApi, recommendApi } from "@/lib/api";
 import axios from "axios";
 
 const PROCESSING_CHAIN = [
@@ -247,6 +247,42 @@ function EqVisualization({ eq }: { eq: { freq: number; gain: number }[] }) {
   );
 }
 
+interface MasteringRecommendation {
+  duration: number;
+  sampleRate: number;
+  channels: number;
+  codec: string;
+  meanLoudness: number;
+  peakLevel: number;
+  dynamicRange: number;
+  noiseFloor: number;
+  frequencyBalance: { low: number; mid: number; high: number };
+  characteristics: string[];
+  recommendedPreset: string;
+  recommendedLufs: number;
+  recommendedLoudnessTarget: string;
+  deBreath: boolean;
+  deNoise: boolean;
+  deEss: boolean;
+  lowEq: number;
+  midEq: number;
+  highEq: number;
+  confidence: number;
+  summary: string;
+}
+
+function FrequencyBalanceBar({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[11px] text-zinc-500 w-8 font-mono">{label}</span>
+      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="h-full rounded-full transition-all" style={{ width: `${value}%`, backgroundColor: color }} />
+      </div>
+      <span className="text-[11px] text-zinc-400 w-8 text-right font-mono">{value}%</span>
+    </div>
+  );
+}
+
 export default function UploadPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("upload");
@@ -276,6 +312,10 @@ export default function UploadPage() {
   const [deNoise, setDeNoise] = useState(false);
   const [deEss, setDeEss] = useState(false);
   const [highEq, setHighEq] = useState(0);
+
+  // Recommendation state
+  const [analyzing, setAnalyzing] = useState(false);
+  const [recommendation, setRecommendation] = useState<MasteringRecommendation | null>(null);
 
   const allPresets = useMemo(
     () => [...STANDARD_PRESETS, ...GENRE_PRESETS],
@@ -385,6 +425,39 @@ export default function UploadPage() {
     } finally {
       setRefUploading(false);
     }
+  };
+
+  const handleAnalyze = async () => {
+    if (!fileId) return;
+    setAnalyzing(true);
+    try {
+      const { data } = await recommendApi.mastering(fileId);
+      setRecommendation(data);
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const applyRecommendation = () => {
+    if (!recommendation) return;
+    const allP = [...STANDARD_PRESETS, ...GENRE_PRESETS];
+    const match = allP.find((p) => p.id.toLowerCase() === recommendation.recommendedPreset.toLowerCase());
+    if (match) {
+      setPreset(match.id);
+      setPresetTab(STANDARD_PRESETS.includes(match) ? "standard" : "genre");
+    }
+    if (recommendation.recommendedLoudnessTarget) {
+      setLoudnessTarget(recommendation.recommendedLoudnessTarget);
+    }
+    if (recommendation.lowEq !== 0) setLowEq(recommendation.lowEq);
+    if (recommendation.midEq !== 0) setMidEq(recommendation.midEq);
+    if (recommendation.highEq !== 0) setHighEq(recommendation.highEq);
+    setDeBreath(recommendation.deBreath);
+    setDeNoise(recommendation.deNoise);
+    setDeEss(recommendation.deEss);
+    toast.success("Recommendations applied!");
   };
 
   const handleCreateJob = async () => {
@@ -500,6 +573,85 @@ export default function UploadPage() {
               Change
             </button>
           </div>
+
+
+          {/* Analyze & Recommend */}
+          {!recommendation && (
+            <div className="mb-8">
+              <button
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                className="w-full py-3 rounded-xl font-medium text-[14px] border border-violet-500/50 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 transition-all disabled:opacity-50 flex items-center justify-center gap-2 mb-2"
+              >
+                {analyzing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                {analyzing ? "Analyzing audio..." : "Analyze & Recommend"}
+              </button>
+              <p className="text-[11px] text-zinc-600 text-center">
+                AI analyzes your track and suggests optimal mastering settings
+              </p>
+            </div>
+          )}
+
+          {recommendation && (
+            <div className="mb-8 bg-zinc-900/50 border border-violet-500/30 rounded-xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[13px] font-semibold text-violet-300">AI Recommendation</p>
+                <span className="text-[11px] font-mono text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-full">
+                  {recommendation.confidence}% confident
+                </span>
+              </div>
+
+              <p className="text-[12px] text-zinc-400 mb-4 leading-relaxed">{recommendation.summary}</p>
+
+              {/* Characteristics */}
+              {recommendation.characteristics.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {recommendation.characteristics.map((c, i) => (
+                    <span key={i} className="px-2.5 py-1 rounded-full bg-zinc-800/80 text-[11px] font-medium text-zinc-300 border border-zinc-700/50">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {/* Frequency Balance */}
+              <div className="mb-4 space-y-1.5">
+                <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-medium mb-2">Frequency Balance</p>
+                <FrequencyBalanceBar label="Low" value={recommendation.frequencyBalance.low} color="#10b981" />
+                <FrequencyBalanceBar label="Mid" value={recommendation.frequencyBalance.mid} color="#f59e0b" />
+                <FrequencyBalanceBar label="High" value={recommendation.frequencyBalance.high} color="#3b82f6" />
+              </div>
+
+              {/* Audio Info */}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mb-4 text-[11px] text-zinc-500">
+                <span>Duration: <span className="text-zinc-300 font-mono">{Math.floor(recommendation.duration / 60)}:{String(Math.floor(recommendation.duration % 60)).padStart(2, "0")}</span></span>
+                <span>Sample Rate: <span className="text-zinc-300 font-mono">{(recommendation.sampleRate / 1000).toFixed(1)}kHz</span></span>
+                <span>Codec: <span className="text-zinc-300 font-mono uppercase">{recommendation.codec}</span></span>
+                <span>Channels: <span className="text-zinc-300 font-mono">{recommendation.channels}</span></span>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={applyRecommendation}
+                  className="flex-1 py-2.5 rounded-lg font-medium text-[13px] text-zinc-950 transition-all"
+                  style={{ background: "linear-gradient(135deg, #c4b5fd, #a78bfa)" }}
+                >
+                  Apply Recommendations
+                </button>
+                <button
+                  onClick={() => setRecommendation(null)}
+                  className="text-[12px] text-zinc-500 hover:text-zinc-300 transition-colors px-3 py-2.5"
+                >
+                  Ignore
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Preset tabs */}
           <p className="text-[13px] font-medium text-zinc-400 mb-3">Preset</p>
