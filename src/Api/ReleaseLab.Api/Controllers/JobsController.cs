@@ -262,6 +262,7 @@ public class JobsController : ControllerBase
 
     private static JobResponse MapToResponse(Job j) => new(
         j.Id, j.Status.ToString(), j.Preset.ToString(), j.Quality.ToString(),
-        j.Progress, j.ErrorMessage, j.EstimatedDurationSec, j.CreatedAt, j.FinishedAt
+        j.Progress, j.ErrorMessage, j.EstimatedDurationSec, j.MasteringSettings,
+        j.CreatedAt, j.FinishedAt
     );
 }

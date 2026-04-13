@@ -64,6 +64,8 @@ public static class ProMasteringChain
         return string.Join(",", filters);
     }
 
+    public static int GetTargetLufs(MasteringJobMessage msg) => ResolveTargetLufs(msg, msg.Preset.ToLowerInvariant());
+
     private static int ResolveTargetLufs(MasteringJobMessage msg, string preset)
     {
         if (msg.LoudnessTarget is not null)

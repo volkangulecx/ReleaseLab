@@ -23,6 +23,7 @@ public record JobResponse(
     short Progress,
     string? ErrorMessage,
     int? EstimatedDurationSec,
+    string? MasteringSettings,
     DateTime CreatedAt,
     DateTime? FinishedAt
 );

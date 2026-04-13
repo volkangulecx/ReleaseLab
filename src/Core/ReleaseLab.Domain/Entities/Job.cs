@@ -18,6 +18,7 @@ public class Job
     public short AttemptCount { get; set; }
     public int CreditsCost { get; set; }
     public int? EstimatedDurationSec { get; set; }
+    public string? MasteringSettings { get; set; }  // JSON: applied settings summary
     public DateTime? StartedAt { get; set; }
     public DateTime? FinishedAt { get; set; }
     public DateTime CreatedAt { get; set; }

@@ -195,6 +195,20 @@ public class MasteringWorker : BackgroundService
                 await UploadFileAsync(minio, outputBucket, $"{userId}/{job.Id}/master.mp3", outputMasterMp3, ct);
             }
 
+            // Save mastering settings for display
+            job.MasteringSettings = System.Text.Json.JsonSerializer.Serialize(new
+            {
+                preset = message.Preset,
+                loudnessTarget = message.LoudnessTarget ?? "default",
+                targetLufs = ProMasteringChain.GetTargetLufs(message),
+                deBreath = message.DeBreath,
+                deNoise = message.DeNoise,
+                deEss = message.DeEss,
+                customEq = new { low = message.LowEq ?? 0, mid = message.MidEq ?? 0, high = message.HighEq ?? 0 },
+                stages = new[] { "cleanup", "eq", "compression", "stereo", "loudnorm", "limiter" },
+                quality = message.Quality,
+            });
+
             // Update job status
             job.Status = JobStatus.Completed;
             job.Progress = 100;
