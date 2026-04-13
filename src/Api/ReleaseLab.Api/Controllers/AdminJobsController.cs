@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ReleaseLab.Application.Interfaces;
+using ReleaseLab.Contracts.Messages;
 using ReleaseLab.Domain.Enums;
 
 namespace ReleaseLab.Api.Controllers;
@@ -12,10 +13,12 @@ namespace ReleaseLab.Api.Controllers;
 public class AdminJobsController : ControllerBase
 {
     private readonly IAppDbContext _db;
+    private readonly IQueueService _queue;
 
-    public AdminJobsController(IAppDbContext db)
+    public AdminJobsController(IAppDbContext db, IQueueService queue)
     {
         _db = db;
+        _queue = queue;
     }
 
     [HttpGet]
@@ -88,6 +91,46 @@ public class AdminJobsController : ControllerBase
         await _db.SaveChangesAsync();
 
         return Ok(new { job.Id, Status = job.Status.ToString() });
+    }
+
+    [HttpPost("{id:guid}/requeue")]
+    public async Task<IActionResult> Requeue(Guid id)
+    {
+        var job = await _db.Jobs.Include(j => j.InputFile).Include(j => j.User).FirstOrDefaultAsync(j => j.Id == id);
+        if (job is null) return NotFound();
+
+        if (job.Status is not (JobStatus.Failed or JobStatus.Dead))
+            return BadRequest(new { message = "Can only requeue failed/dead jobs" });
+
+        job.Status = JobStatus.Queued;
+        job.ErrorCode = null;
+        job.ErrorMessage = null;
+        job.Progress = 0;
+        job.AttemptCount++;
+        job.StartedAt = null;
+        job.FinishedAt = null;
+        await _db.SaveChangesAsync();
+
+        await _queue.EnqueueMasteringJobAsync(new MasteringJobMessage
+        {
+            JobId = job.Id,
+            UserId = job.UserId,
+            InputS3Key = job.InputFile.S3Key,
+            OutputBucket = "releaselab-processed",
+            Preset = job.Preset.ToString(),
+            Quality = job.Quality.ToString(),
+            UserPlan = job.User.Plan.ToString(),
+            AttemptCount = job.AttemptCount,
+            EnqueuedAt = DateTime.UtcNow
+        }, job.User.Plan);
+
+        return Ok(new
+        {
+            job.Id,
+            Status = job.Status.ToString(),
+            job.AttemptCount,
+            Requeued = true
+        });
     }
 
     [HttpPost("{id:guid}/cancel")]

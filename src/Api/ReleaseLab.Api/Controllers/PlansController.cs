@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using ReleaseLab.Api.Extensions;
 using ReleaseLab.Application.Interfaces;
 using ReleaseLab.Domain.Enums;
+using StackExchange.Redis;
 
 namespace ReleaseLab.Api.Controllers;
 
@@ -13,11 +15,13 @@ public class PlansController : ControllerBase
 {
     private readonly IAppDbContext _db;
     private readonly ISubscriptionService _subscriptions;
+    private readonly IConnectionMultiplexer _redis;
 
-    public PlansController(IAppDbContext db, ISubscriptionService subscriptions)
+    public PlansController(IAppDbContext db, ISubscriptionService subscriptions, IConnectionMultiplexer redis)
     {
         _db = db;
         _subscriptions = subscriptions;
+        _redis = redis;
     }
 
     [AllowAnonymous]
@@ -58,35 +62,45 @@ public class PlansController : ControllerBase
     public async Task<IActionResult> CurrentPlan()
     {
         var userId = Guid.Parse(User.FindFirst("sub")!.Value);
-        var user = await _db.Users.FindAsync(userId);
-        if (user is null) return NotFound();
 
-        var sub = await _db.Subscriptions
-            .Where(s => s.UserId == userId && (s.Status == "active" || s.Status == "trialing"))
-            .FirstOrDefaultAsync();
-
-        var plan = sub?.Plan ?? user.Plan;
-        var canCreate = await _subscriptions.CanCreateMasterAsync(userId);
-
-        var periodStart = sub?.CurrentPeriodStart ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-        var mastersUsed = await _db.Jobs
-            .CountAsync(j => j.UserId == userId && j.CreatedAt >= periodStart &&
-                            j.Status != Domain.Enums.JobStatus.Cancelled && j.Status != Domain.Enums.JobStatus.Rejected);
-
-        return Ok(new
-        {
-            plan = plan.ToString(),
-            mastersUsed,
-            mastersLimit = PlanLimits.MonthlyMasters(plan),
-            canCreateMaster = canCreate,
-            maxFileSizeMb = PlanLimits.MaxFileSizeBytes(plan) / 1024 / 1024,
-            subscription = sub is null ? null : new
+        var result = await _redis.GetOrSetAsync(
+            $"cache:plan:{userId}",
+            async () =>
             {
-                status = sub.Status,
-                currentPeriodEnd = sub.CurrentPeriodEnd,
-                canceledAt = sub.CanceledAt
-            }
-        });
+                var user = await _db.Users.FindAsync(userId);
+                if (user is null) return null;
+
+                var sub = await _db.Subscriptions
+                    .Where(s => s.UserId == userId && (s.Status == "active" || s.Status == "trialing"))
+                    .FirstOrDefaultAsync();
+
+                var plan = sub?.Plan ?? user.Plan;
+                var canCreate = await _subscriptions.CanCreateMasterAsync(userId);
+
+                var periodStart = sub?.CurrentPeriodStart ?? new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+                var mastersUsed = await _db.Jobs
+                    .CountAsync(j => j.UserId == userId && j.CreatedAt >= periodStart &&
+                                    j.Status != Domain.Enums.JobStatus.Cancelled && j.Status != Domain.Enums.JobStatus.Rejected);
+
+                return new
+                {
+                    plan = plan.ToString(),
+                    mastersUsed,
+                    mastersLimit = PlanLimits.MonthlyMasters(plan),
+                    canCreateMaster = canCreate,
+                    maxFileSizeMb = PlanLimits.MaxFileSizeBytes(plan) / 1024 / 1024,
+                    subscription = sub is null ? null : new
+                    {
+                        status = sub.Status,
+                        currentPeriodEnd = sub.CurrentPeriodEnd,
+                        canceledAt = sub.CanceledAt
+                    }
+                };
+            },
+            TimeSpan.FromSeconds(60));
+
+        if (result is null) return NotFound();
+        return Ok(result);
     }
 
     [HttpPost("subscribe")]

@@ -192,6 +192,7 @@ builder.Services.AddSerilog(lc => lc
 
     // ── Middleware Pipeline ──
     app.UseResponseCompression();
+    app.UseMiddleware<SecurityHeadersMiddleware>();
     app.UseMiddleware<CorrelationIdMiddleware>();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
     app.UseMiddleware<RequestLoggingMiddleware>();
