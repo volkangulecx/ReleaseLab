@@ -127,11 +127,18 @@ public class MixingController : ControllerBase
         if (request.Muted.HasValue) track.Muted = request.Muted.Value;
         if (request.Solo.HasValue) track.Solo = request.Solo.Value;
         if (request.Name is not null) track.Name = request.Name;
+        if (request.Color is not null) track.Color = request.Color;
+        if (request.EqPreset is not null) track.EqPreset = request.EqPreset;
+        if (request.LowGain.HasValue) track.LowGain = Math.Clamp(request.LowGain.Value, -12, 12);
+        if (request.MidGain.HasValue) track.MidGain = Math.Clamp(request.MidGain.Value, -12, 12);
+        if (request.HighGain.HasValue) track.HighGain = Math.Clamp(request.HighGain.Value, -12, 12);
+        if (request.ReverbAmount.HasValue) track.ReverbAmount = Math.Clamp(request.ReverbAmount.Value, 0, 1);
+        if (request.CompressorThreshold.HasValue) track.CompressorThreshold = Math.Clamp(request.CompressorThreshold.Value, -60, 0);
 
         track.Project.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
 
-        return Ok(new { track.Id, track.Name, track.Volume, track.Pan, track.Muted, track.Solo });
+        return Ok(MapTrack(track));
     }
 
     [HttpDelete("projects/{projectId:guid}/tracks/{trackId:guid}")]
@@ -189,8 +196,108 @@ public class MixingController : ControllerBase
         catch (KeyNotFoundException) { return NotFound(); }
         catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
     }
+
+    [HttpPost("projects/{id:guid}/reorder")]
+    public async Task<IActionResult> ReorderTracks(Guid id, [FromBody] ReorderRequest request)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        var project = await _db.MixProjects
+            .Include(p => p.Tracks)
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+        if (project is null) return NotFound();
+
+        foreach (var item in request.Order)
+        {
+            var track = project.Tracks.FirstOrDefault(t => t.Id == item.TrackId);
+            if (track is not null) track.OrderIndex = item.Index;
+        }
+
+        project.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Tracks reordered" });
+    }
+
+    [HttpPost("projects/{id:guid}/duplicate")]
+    public async Task<IActionResult> DuplicateProject(Guid id)
+    {
+        var userId = Guid.Parse(User.FindFirst("sub")!.Value);
+        var source = await _db.MixProjects
+            .Include(p => p.Tracks)
+            .FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+        if (source is null) return NotFound();
+
+        var newProject = new Domain.Entities.MixProject
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Name = $"{source.Name} (Copy)",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+        };
+
+        foreach (var t in source.Tracks)
+        {
+            newProject.Tracks.Add(new Domain.Entities.MixTrack
+            {
+                Id = Guid.NewGuid(),
+                MixProjectId = newProject.Id,
+                FileId = t.FileId,
+                Name = t.Name,
+                Volume = t.Volume,
+                Pan = t.Pan,
+                Muted = t.Muted,
+                Solo = t.Solo,
+                OrderIndex = t.OrderIndex,
+                Color = t.Color,
+                EqPreset = t.EqPreset,
+                LowGain = t.LowGain,
+                MidGain = t.MidGain,
+                HighGain = t.HighGain,
+                ReverbAmount = t.ReverbAmount,
+                CompressorThreshold = t.CompressorThreshold,
+                CreatedAt = DateTime.UtcNow,
+            });
+        }
+
+        _db.MixProjects.Add(newProject);
+        await _db.SaveChangesAsync();
+
+        return Created($"/api/v1/mix/projects/{newProject.Id}", new
+        {
+            newProject.Id, newProject.Name, newProject.Status, TrackCount = newProject.Tracks.Count
+        });
+    }
+
+    [HttpGet("eq-presets")]
+    public IActionResult ListEqPresets()
+    {
+        var presets = new[]
+        {
+            new { id = "none", name = "None", low = 0, mid = 0, high = 0 },
+            new { id = "vocal", name = "Vocal Boost", low = -2, mid = 3, high = 2 },
+            new { id = "drums", name = "Drums Punch", low = 3, mid = -1, high = 2 },
+            new { id = "bass", name = "Bass Heavy", low = 6, mid = -2, high = -1 },
+            new { id = "guitar", name = "Guitar Clarity", low = -1, mid = 2, high = 3 },
+            new { id = "keys", name = "Keys/Piano", low = 0, mid = 1, high = 2 },
+            new { id = "bright", name = "Bright Air", low = -2, mid = 0, high = 5 },
+            new { id = "warm", name = "Warm Body", low = 3, mid = 1, high = -3 },
+        };
+        return Ok(presets);
+    }
+
+    private static object MapTrack(Domain.Entities.MixTrack t) => new
+    {
+        t.Id, t.Name, t.Volume, t.Pan, t.Muted, t.Solo, t.OrderIndex,
+        t.Color, t.EqPreset, t.LowGain, t.MidGain, t.HighGain,
+        t.ReverbAmount, t.CompressorThreshold,
+    };
 }
 
 public record CreateMixProjectRequest(string? Name);
 public record AddTrackRequest(Guid FileId, string? Name);
-public record UpdateTrackRequest(double? Volume, double? Pan, bool? Muted, bool? Solo, string? Name);
+public record UpdateTrackRequest(
+    double? Volume, double? Pan, bool? Muted, bool? Solo, string? Name,
+    string? Color, string? EqPreset, double? LowGain, double? MidGain, double? HighGain,
+    double? ReverbAmount, double? CompressorThreshold);
+public record ReorderRequest(ReorderItem[] Order);
+public record ReorderItem(Guid TrackId, int Index);

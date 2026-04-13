@@ -51,7 +51,8 @@ public class MixdownService
             await db.SaveChangesAsync(ct);
 
             // Download all tracks using WithFile (not WithCallbackStream — that hangs)
-            var trackPaths = new List<(string path, double volume, double pan)>();
+            // Download and prepare track info
+            var trackInfos = new List<TrackMixInfo>();
             for (int i = 0; i < activeTracks.Count; i++)
             {
                 var track = activeTracks[i];
@@ -62,42 +63,39 @@ public class MixdownService
                     .WithObject(track.File.S3Key)
                     .WithFile(localPath), ct);
 
-                trackPaths.Add((localPath, track.Volume, track.Pan));
-                _logger.LogInformation("Downloaded track {Index}: {Key} ({Volume}, pan {Pan})", i, track.File.S3Key, track.Volume, track.Pan);
+                trackInfos.Add(new TrackMixInfo(localPath, track.Volume, track.Pan,
+                    track.LowGain, track.MidGain, track.HighGain,
+                    track.CompressorThreshold));
             }
 
             project.Progress = 40;
             await db.SaveChangesAsync(ct);
 
-            // Build and run FFmpeg
             _logger.LogInformation("Mixdown: {TrackCount} tracks for project {ProjectId}", activeTracks.Count, projectId);
 
-            if (activeTracks.Count == 1)
+            // Build per-track filter chains with EQ + compressor
+            var inputs = string.Join(" ", trackInfos.Select((t, i) => $"-i \"{t.Path}\""));
+            var filters = new List<string>();
+
+            for (int i = 0; i < trackInfos.Count; i++)
             {
-                // Single track — just apply volume
-                var (path, vol, _) = trackPaths[0];
-                var volStr = vol.ToString("F2", CultureInfo.InvariantCulture);
-                await RunFFmpeg($"-y -i \"{path}\" -af \"volume={volStr}\" -ar 44100 \"{outputPath}\"", ct);
+                var t = trackInfos[i];
+                var chain = BuildTrackFilterChain(t, i);
+                filters.Add(chain);
+            }
+
+            if (trackInfos.Count == 1)
+            {
+                filters.Add("[t0]acopy[out]");
             }
             else
             {
-                // Multi-track — simple amix with volume pre-adjustment
-                var inputs = string.Join(" ", trackPaths.Select((t, i) => $"-i \"{t.path}\""));
-                var filters = new List<string>();
-
-                for (int i = 0; i < trackPaths.Count; i++)
-                {
-                    var (_, vol, _) = trackPaths[i];
-                    var volStr = vol.ToString("F2", CultureInfo.InvariantCulture);
-                    filters.Add($"[{i}:a]volume={volStr}[v{i}]");
-                }
-
-                var mixInputs = string.Join("", Enumerable.Range(0, trackPaths.Count).Select(i => $"[v{i}]"));
-                filters.Add($"{mixInputs}amix=inputs={trackPaths.Count}:duration=longest[out]");
-
-                var filterComplex = string.Join(";", filters);
-                await RunFFmpeg($"-y {inputs} -filter_complex \"{filterComplex}\" -map \"[out]\" -ar 44100 \"{outputPath}\"", ct);
+                var mixInputs = string.Join("", Enumerable.Range(0, trackInfos.Count).Select(i => $"[t{i}]"));
+                filters.Add($"{mixInputs}amix=inputs={trackInfos.Count}:duration=longest[out]");
             }
+
+            var filterComplex = string.Join(";", filters);
+            await RunFFmpeg($"-y {inputs} -filter_complex \"{filterComplex}\" -map \"[out]\" -ar 44100 \"{outputPath}\"", ct);
 
             project.Progress = 80;
             await db.SaveChangesAsync(ct);
@@ -248,6 +246,34 @@ public class MixdownService
         await process.WaitForExitAsync(ct);
 
         var match = System.Text.RegularExpressions.Regex.Match(stderr, @"mean_volume:\s*(-?\d+\.?\d*)\s*dB");
-        return match.Success ? double.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : -18.0;
+        return match.Success ? double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture) : -18.0;
     }
+
+    private static string BuildTrackFilterChain(TrackMixInfo t, int index)
+    {
+        var parts = new List<string>();
+        var ic = CultureInfo.InvariantCulture;
+
+        // Volume
+        parts.Add($"volume={t.Volume.ToString("F2", ic)}");
+
+        // 3-band EQ (only if non-zero)
+        if (Math.Abs(t.LowGain) > 0.1)
+            parts.Add($"equalizer=f=200:width_type=o:width=2:g={t.LowGain.ToString("F1", ic)}");
+        if (Math.Abs(t.MidGain) > 0.1)
+            parts.Add($"equalizer=f=1000:width_type=o:width=2:g={t.MidGain.ToString("F1", ic)}");
+        if (Math.Abs(t.HighGain) > 0.1)
+            parts.Add($"equalizer=f=8000:width_type=o:width=2:g={t.HighGain.ToString("F1", ic)}");
+
+        // Compressor (only if threshold < 0)
+        if (t.CompressorThreshold < -1)
+            parts.Add($"acompressor=threshold={t.CompressorThreshold.ToString("F0", ic)}dB:ratio=3:attack=10:release=200");
+
+        return $"[{index}:a]{string.Join(",", parts)}[t{index}]";
+    }
+
+    private record TrackMixInfo(
+        string Path, double Volume, double Pan,
+        double LowGain, double MidGain, double HighGain,
+        double CompressorThreshold);
 }
