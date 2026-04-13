@@ -3,7 +3,7 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
-import { Check, Loader2, X } from "lucide-react";
+import { Check, ChevronDown, Loader2, RotateCcw, X } from "lucide-react";
 import { uploadApi, jobsApi } from "@/lib/api";
 import axios from "axios";
 
@@ -68,6 +68,14 @@ const QUALITIES = [
   { id: "HiRes", label: "Hi-Res", sublabel: "1 credit", desc: "WAV + MP3 320kbps" },
 ];
 
+const LOUDNESS_TARGETS = [
+  { id: "spotify", label: "Spotify", lufs: -14 },
+  { id: "apple", label: "Apple", lufs: -16 },
+  { id: "youtube", label: "YouTube", lufs: -13 },
+  { id: "club", label: "Club", lufs: -8 },
+  { id: "custom", label: "Custom", lufs: null },
+];
+
 type Step = "upload" | "preset" | "processing";
 type PresetTab = "standard" | "genre";
 
@@ -87,6 +95,14 @@ export default function UploadPage() {
   const [refFile, setRefFile] = useState<File | null>(null);
   const [refFileId, setRefFileId] = useState<string | null>(null);
   const [refUploading, setRefUploading] = useState(false);
+
+  // Advanced mastering state
+  const [loudnessTarget, setLoudnessTarget] = useState<string | null>(null);
+  const [customLufs, setCustomLufs] = useState(-14);
+  const [eqExpanded, setEqExpanded] = useState(false);
+  const [lowEq, setLowEq] = useState(0);
+  const [midEq, setMidEq] = useState(0);
+  const [highEq, setHighEq] = useState(0);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -192,7 +208,29 @@ export default function UploadPage() {
     if (!fileId) return;
     setCreating(true);
     try {
-      const { data: job } = await jobsApi.create(fileId, preset, quality);
+      const payload: {
+        fileId: string;
+        preset: string;
+        quality: string;
+        loudnessTarget?: string;
+        customLufs?: number;
+        lowEq?: number;
+        midEq?: number;
+        highEq?: number;
+      } = { fileId, preset, quality };
+
+      if (loudnessTarget) {
+        payload.loudnessTarget = loudnessTarget;
+        if (loudnessTarget === "custom") {
+          payload.customLufs = customLufs;
+        }
+      }
+
+      if (lowEq !== 0) payload.lowEq = lowEq;
+      if (midEq !== 0) payload.midEq = midEq;
+      if (highEq !== 0) payload.highEq = highEq;
+
+      const { data: job } = await jobsApi.create(payload);
       toast.success("Mastering started!");
       router.push(`/jobs/${job.id}`);
     } catch (err: any) {
@@ -371,6 +409,142 @@ export default function UploadPage() {
               );
             })}
           </div>
+
+          {/* Loudness Target */}
+          <p className="text-[13px] font-medium text-zinc-400 mb-3">Loudness Target</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {LOUDNESS_TARGETS.map((t) => {
+              const isSelected = loudnessTarget === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setLoudnessTarget(isSelected ? null : t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-[12px] font-medium border transition-colors ${
+                    isSelected
+                      ? "border-white/80 bg-white/[0.06] text-white"
+                      : "border-zinc-800/40 text-zinc-500 hover:border-zinc-700/60 hover:text-zinc-300"
+                  }`}
+                >
+                  {t.label}
+                  {t.lufs !== null && (
+                    <span className="ml-1 text-zinc-600">{t.lufs}</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {loudnessTarget === "custom" && (
+            <div className="mb-6 bg-zinc-900/50 border border-zinc-800/40 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[12px] text-zinc-500">Custom LUFS</span>
+                <span className="text-[13px] font-mono text-white">{customLufs} LUFS</span>
+              </div>
+              <input
+                type="range"
+                min={-20}
+                max={-6}
+                step={0.5}
+                value={customLufs}
+                onChange={(e) => setCustomLufs(parseFloat(e.target.value))}
+                className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3.5 [&::-webkit-slider-thumb]:h-3.5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm"
+              />
+              <div className="flex justify-between mt-1">
+                <span className="text-[10px] text-zinc-600">-20</span>
+                <span className="text-[10px] text-zinc-600">-6</span>
+              </div>
+            </div>
+          )}
+          {loudnessTarget !== "custom" && <div className="mb-8" />}
+          {loudnessTarget === "custom" && <div className="mb-2" />}
+
+          {/* Fine-tune EQ (collapsible) */}
+          <button
+            onClick={() => setEqExpanded(!eqExpanded)}
+            className="flex items-center gap-2 mb-3 group"
+          >
+            <ChevronDown
+              className={`w-3.5 h-3.5 text-zinc-500 transition-transform ${
+                eqExpanded ? "rotate-0" : "-rotate-90"
+              }`}
+            />
+            <span className="text-[13px] font-medium text-zinc-400 group-hover:text-zinc-300 transition-colors">
+              Fine-tune EQ
+            </span>
+            {(lowEq !== 0 || midEq !== 0 || highEq !== 0) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-white/60" />
+            )}
+          </button>
+          {eqExpanded && (
+            <div className="bg-zinc-900/50 border border-zinc-800/40 rounded-lg p-4 mb-8">
+              <div className="space-y-4">
+                {/* Low EQ */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[12px] text-zinc-500">Low (200 Hz)</span>
+                    <span className="text-[12px] font-mono text-zinc-300 w-14 text-right">
+                      {lowEq > 0 ? "+" : ""}{lowEq} dB
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-12}
+                    max={12}
+                    step={0.5}
+                    value={lowEq}
+                    onChange={(e) => setLowEq(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm"
+                  />
+                </div>
+                {/* Mid EQ */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[12px] text-zinc-500">Mid (2 kHz)</span>
+                    <span className="text-[12px] font-mono text-zinc-300 w-14 text-right">
+                      {midEq > 0 ? "+" : ""}{midEq} dB
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-12}
+                    max={12}
+                    step={0.5}
+                    value={midEq}
+                    onChange={(e) => setMidEq(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm"
+                  />
+                </div>
+                {/* High EQ */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[12px] text-zinc-500">High (10 kHz)</span>
+                    <span className="text-[12px] font-mono text-zinc-300 w-14 text-right">
+                      {highEq > 0 ? "+" : ""}{highEq} dB
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={-12}
+                    max={12}
+                    step={0.5}
+                    value={highEq}
+                    onChange={(e) => setHighEq(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-zinc-700 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:shadow-sm"
+                  />
+                </div>
+              </div>
+              {/* Reset button */}
+              {(lowEq !== 0 || midEq !== 0 || highEq !== 0) && (
+                <button
+                  onClick={() => { setLowEq(0); setMidEq(0); setHighEq(0); }}
+                  className="flex items-center gap-1.5 mt-3 text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Reset
+                </button>
+              )}
+            </div>
+          )}
+          {!eqExpanded && <div className="mb-8" />}
 
           {/* Reference Track */}
           <p className="text-[13px] font-medium text-zinc-400 mb-2">Reference Track</p>

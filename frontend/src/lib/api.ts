@@ -71,8 +71,8 @@ export const uploadApi = {
 
 // Jobs
 export const jobsApi = {
-  create: (fileId: string, preset: string, quality: string) =>
-    api.post("/api/v1/jobs", { fileId, preset, quality }),
+  create: (data: { fileId: string; preset: string; quality: string; loudnessTarget?: string; customLufs?: number; lowEq?: number; midEq?: number; highEq?: number }) =>
+    api.post("/api/v1/jobs", data),
   list: (page = 1, pageSize = 20) =>
     api.get(`/api/v1/jobs?page=${page}&pageSize=${pageSize}`),
   get: (id: string) => api.get(`/api/v1/jobs/${id}`),
