@@ -36,12 +36,20 @@ public class RecommendController : ControllerBase
 
         try
         {
+            // Download with timeout
+            using var dlCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             await minio.GetObjectAsync(new Minio.DataModel.Args.GetObjectArgs()
                 .WithBucket("releaselab-raw")
                 .WithObject(file.S3Key)
-                .WithFile(tempPath));
+                .WithFile(tempPath), dlCts.Token);
 
-            var recommendation = await _recommend.AnalyzeAndRecommendAsync(tempPath);
+            // Check file size — skip analysis for very large files
+            var fileSize = new FileInfo(tempPath).Length;
+            if (fileSize > 100 * 1024 * 1024) // 100MB limit for analysis
+                return BadRequest(new { message = "File too large for analysis (max 100MB)" });
+
+            using var analysisCts = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            var recommendation = await _recommend.AnalyzeAndRecommendAsync(tempPath, analysisCts.Token);
             return Ok(recommendation);
         }
         catch (Exception ex)
@@ -85,7 +93,8 @@ public class RecommendController : ControllerBase
                 tracks.Add((localPath, track.Name));
             }
 
-            var recommendation = await _recommend.AnalyzeTracksAndRecommendAsync(tracks);
+            using var analysisCts = new CancellationTokenSource(TimeSpan.FromMinutes(5));
+            var recommendation = await _recommend.AnalyzeTracksAndRecommendAsync(tracks, analysisCts.Token);
             return Ok(recommendation);
         }
         catch (Exception ex)

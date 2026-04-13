@@ -37,6 +37,17 @@ api.interceptors.response.use(
         }
       }
     }
+
+    // Global error display for network/server errors
+    if (!error.response) {
+      // Network error — API unreachable
+      const toast = (await import("react-hot-toast")).default;
+      toast.error("Server unreachable. Check if API is running.");
+    } else if (error.response.status >= 500) {
+      const toast = (await import("react-hot-toast")).default;
+      toast.error("Server error. Please try again.");
+    }
+
     return Promise.reject(error);
   }
 );
