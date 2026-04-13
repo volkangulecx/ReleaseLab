@@ -129,6 +129,13 @@ export const releaseApi = {
   submit: (id: string) => api.post(`/api/v1/releases/${id}/submit`),
 };
 
+// Presets
+export const presetsApi = {
+  all: () => api.get("/api/v1/presets/all"),
+  loudnessTargets: () => api.get("/api/v1/presets/loudness-targets"),
+  processingChain: () => api.get("/api/v1/presets/processing-chain"),
+};
+
 // Admin
 export const adminApi = {
   stats: () => api.get("/api/admin/jobs/stats"),
