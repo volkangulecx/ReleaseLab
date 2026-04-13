@@ -91,6 +91,7 @@ builder.Services.AddSerilog(lc => lc
 
     // ── Scoped Services ──
     builder.Services.AddScoped<ReleaseLab.Api.Services.MixdownService>();
+    builder.Services.AddSingleton<ReleaseLab.Api.Services.AudioRecommendationService>();
 
     // ── Background Services ──
     builder.Services.AddHostedService<ReleaseLab.Api.Services.CleanupService>();
