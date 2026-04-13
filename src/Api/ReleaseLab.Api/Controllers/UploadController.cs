@@ -32,10 +32,29 @@ public class UploadController : ControllerBase
         var user = await _db.Users.FindAsync(userId);
         if (user is null) return Unauthorized();
 
-        // Validate content type
+        // Validate by content type OR file extension
         var allowedTypes = new[] { "audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac" };
-        if (!allowedTypes.Contains(request.ContentType.ToLowerInvariant()))
-            return BadRequest(new { message = "Unsupported audio format" });
+        var allowedExts = new[] { ".wav", ".mp3", ".flac" };
+        var fileExt = Path.GetExtension(request.FileName)?.ToLowerInvariant() ?? "";
+        var contentType = request.ContentType?.ToLowerInvariant() ?? "";
+
+        var mimeOk = allowedTypes.Contains(contentType);
+        var extOk = allowedExts.Contains(fileExt);
+
+        if (!mimeOk && !extOk)
+            return BadRequest(new { message = "Unsupported audio format. Use WAV, MP3, or FLAC." });
+
+        // Resolve content type from extension if browser sent empty/generic
+        if (!mimeOk && extOk)
+        {
+            contentType = fileExt switch
+            {
+                ".wav" => "audio/wav",
+                ".mp3" => "audio/mpeg",
+                ".flac" => "audio/flac",
+                _ => "application/octet-stream"
+            };
+        }
 
         // Plan-based file size limit
         var maxSize = Application.Interfaces.PlanLimits.MaxFileSizeBytes(user.Plan);
@@ -44,9 +63,9 @@ public class UploadController : ControllerBase
 
         var fileId = Guid.NewGuid();
         var now = DateTime.UtcNow;
-        var s3Key = $"{userId}/{now:yyyy}/{now:MM}/{fileId}{GetExtension(request.ContentType)}";
+        var s3Key = $"{userId}/{now:yyyy}/{now:MM}/{fileId}{GetExtension(contentType)}";
 
-        var uploadUrl = await _storage.GeneratePresignedUploadUrlAsync(RawBucket, s3Key, request.ContentType);
+        var uploadUrl = await _storage.GeneratePresignedUploadUrlAsync(RawBucket, s3Key, contentType);
 
         var file = new AudioFile
         {
@@ -54,7 +73,7 @@ public class UploadController : ControllerBase
             UserId = userId,
             S3Key = s3Key,
             Kind = FileKind.Raw,
-            Format = GetFormat(request.ContentType),
+            Format = GetFormat(contentType),
             SizeBytes = request.SizeBytes,
             CreatedAt = now
         };
