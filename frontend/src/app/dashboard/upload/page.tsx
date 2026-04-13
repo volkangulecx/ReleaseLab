@@ -95,18 +95,26 @@ export default function UploadPage() {
   }, []);
 
   const handleFile = async (f: File) => {
-    const allowedMimes = ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac"];
-    const allowedExts = [".wav", ".mp3", ".flac"];
+    console.log("[Upload] File selected:", f.name, "type:", f.type, "size:", f.size);
+
+    const allowedMimes = ["audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac", "audio/x-m4a", "audio/mp4", "audio/aac", ""];
+    const allowedExts = [".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg"];
     const ext = f.name.toLowerCase().slice(f.name.lastIndexOf("."));
-    const mimeOk = allowedMimes.includes(f.type) || f.type === "";
+    const mimeOk = allowedMimes.includes(f.type);
     const extOk = allowedExts.includes(ext);
 
     if (!mimeOk && !extOk) {
-      toast.error("Unsupported format. Use WAV, MP3, or FLAC.");
+      toast.error(`Unsupported: ${f.name} (type: ${f.type || "unknown"})`);
       return;
     }
 
-    const contentType = f.type || (ext === ".wav" ? "audio/wav" : ext === ".mp3" ? "audio/mpeg" : "audio/flac");
+    const contentType = f.type && f.type !== "application/octet-stream"
+      ? f.type
+      : ext === ".wav" ? "audio/wav"
+      : ext === ".mp3" ? "audio/mpeg"
+      : ext === ".flac" ? "audio/flac"
+      : ext === ".m4a" ? "audio/mp4"
+      : "audio/mpeg";
     if (f.size > 500 * 1024 * 1024) {
       toast.error("File too large (max 500MB)");
       return;
@@ -219,9 +227,13 @@ export default function UploadPage() {
             <input
               id="file-input"
               type="file"
-              accept=".wav,.mp3,.flac"
+              accept=".wav,.mp3,.flac,.m4a,.aac,.ogg,audio/*"
               className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+              onChange={(e) => {
+                const selected = e.target.files?.[0];
+                if (selected) handleFile(selected);
+                e.target.value = ""; // Reset so same file can be re-selected
+              }}
             />
 
             {uploading ? (

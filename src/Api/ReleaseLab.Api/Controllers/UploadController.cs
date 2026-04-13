@@ -33,8 +33,8 @@ public class UploadController : ControllerBase
         if (user is null) return Unauthorized();
 
         // Validate by content type OR file extension
-        var allowedTypes = new[] { "audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac" };
-        var allowedExts = new[] { ".wav", ".mp3", ".flac" };
+        var allowedTypes = new[] { "audio/wav", "audio/x-wav", "audio/mpeg", "audio/flac", "audio/x-flac", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/ogg" };
+        var allowedExts = new[] { ".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg" };
         var fileExt = Path.GetExtension(request.FileName)?.ToLowerInvariant() ?? "";
         var contentType = request.ContentType?.ToLowerInvariant() ?? "";
 
@@ -52,6 +52,9 @@ public class UploadController : ControllerBase
                 ".wav" => "audio/wav",
                 ".mp3" => "audio/mpeg",
                 ".flac" => "audio/flac",
+                ".m4a" => "audio/mp4",
+                ".aac" => "audio/aac",
+                ".ogg" => "audio/ogg",
                 _ => "application/octet-stream"
             };
         }
